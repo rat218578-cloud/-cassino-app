@@ -1,1 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Studio - Login Evolution</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        /* Container */
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Card de Login */
+        .login-card {
+            background: rgba(30, 30, 46, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            padding: 32px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .login-card h1 {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #00cc66, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .login-card p {
+            color: #888;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+        }
+
+        /* Inputs */
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            background: #1a1a2e;
+            border: 1px solid #2a2a3e;
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #00cc66;
+            box-shadow: 0 0 0 2px rgba(0,204,102,0.2);
+        }
+
+        /* Botão */
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            margin-top: 8px;
+            background: linear-gradient(135deg, #00cc66, #009944);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn-login:hover {
+            transform: scale(1.02);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 16px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #2a2a3e;
+            border-top-color: #00cc66;
+            border-radius: 50%;
+            margin: 0 auto 12px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Mensagem de erro */
+        .error-msg {
+            color: #ff4444;
+            font-size: 0.85rem;
+            margin-top: 12px;
+            padding: 8px;
+            background: rgba(255,68,68,0.1);
+            border-radius: 8px;
+        }
+
+        /* Iframe do Jogo */
+        .game-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .game-frame {
+            width: 100%;
+            height: 550px;
+            border: none;
+            border-radius: 16px;
+        }
+
+        /* Botão Voltar */
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #2a2a3e;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            display: none;
+            z-index: 100;
+        }
+
+        .back-btn.active {
+            display: block;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 0.65rem;
+            color: #444;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Botão Voltar (aparece depois que o jogo carrega) -->
+<button id="backBtn" class="back-btn" onclick="backToLogin()">← Voltar</button>
+
+<div class="container">
+    <!-- SEU FORMULÁRIO DE LOGIN -->
+    <div class="login-card" id="loginCard">
+        <h1>⚽ Football Studio</h1>
+        <p>Sinais em Tempo Real - Evolution Gaming</p>
+        
+        <div class="input-group">
+            <input type="email" id="email" placeholder="Email da Sorte na Bet">
+        </div>
+        
+        <div class="input-group">
+            <input type="password" id="password" placeholder="Senha">
+        </div>
+        
+        <button class="btn-login" id="loginBtn" onclick="doLogin()">
+            🎮 Entrar e Jogar
+        </button>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Autenticando e carregando o jogo...</p>
+        </div>
+        
+        <div id="errorMsg" class="error-msg"></div>
+    </div>
+
+    <!-- Container do Jogo -->
+    <div id="gameContainer" class="game-container">
+        <iframe id="gameFrame" class="game-frame" allow="autoplay; fullscreen"></iframe>
+    </div>
+
+    <div class="footer">
+        O Conteúdo presente nesta página é apenas para maiores de 18 anos.<br>
+        Jogue com responsabilidade.
+    </div>
+</div>
+
+<script>
+    async function doLogin() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const loginBtn = document.getElementById('loginBtn');
+        const loading = document.getElementById('loading');
+        const errorMsg = document.getElementById('errorMsg');
+        
+        if (!email || !password) {
+            errorMsg.innerText = 'Preencha email e senha';
+            return;
+        }
+        
+        errorMsg.innerText = '';
+        loginBtn.disabled = true;
+        loading.classList.add('active');
+        
+        try {
+            // Chama SEU BACKEND (no Railway)
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.iframeUrl) {
+                // Esconde o formulário e mostra o jogo
+                document.getElementById('loginCard').style.display = 'none';
+                document.getElementById('gameContainer').style.display = 'block';
+                document.getElementById('backBtn').classList.add('active');
+                
+                // Carrega o iframe
+                const iframe = document.getElementById('gameFrame');
+                iframe.src = data.iframeUrl;
+                
+                // Conecta WebSocket de sinais
+                connectWebSocket();
+                
+            } else {
+                errorMsg.innerText = data.error || 'Email ou senha inválidos';
+                loginBtn.disabled = false;
+            }
+            
+        } catch (error) {
+            errorMsg.innerText = 'Erro de conexão com o servidor. Tente novamente.';
+            loginBtn.disabled = false;
+        } finally {
+            loading.classList.remove('active');
+        }
+    }
+    
+    function backToLogin() {
+        document.getElementById('gameContainer').style.display = 'none';
+        document.getElementById('loginCard').style.display = 'block';
+        document.getElementById('backBtn').classList.remove('active');
+        
+        if (ws) ws.close();
+    }
+    
+    // WebSocket de sinais (igual ao Diogo Cartas)
+    let ws = null;
+    
+    function connectWebSocket() {
+        ws = new WebSocket('wss://apiglobal.appbackend.tech/ws/signals/entrance/football-studio');
+        
+        ws.onopen = () => {
+            console.log('✅ Sinais conectados');
+        };
+        
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('📡 Sinal:', data);
+            } catch(e) {}
+        };
+        
+        ws.onerror = (err) => console.error('WebSocket error:', err);
+    }
+</script>
+
+</body>
+</html>
