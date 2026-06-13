@@ -13,44 +13,37 @@ app.post('/api/login', async (req, res) => {
     
     console.log(`📝 Login via formulário: ${email}`);
     
+    // ⚠️ SUBSTITUA PELO DOMÍNIO CORRETO DA API!
+    const API_URL = 'https://api.sortenabet.bet.br/v1/auth/login';
+    
     try {
-        // 1. Login na Sorte na Bet
-        const authRes = await axios.post('https://api.sortenabet.com/v1/auth/login', {
+        const authRes = await axios.post(API_URL, {
             email: email,
-            password: password,
-            client_id: 'web_app',
-            grant_type: 'password'
+            password: password
         }, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Content-Type': 'application/json',
-                'Origin': 'https://sortenabet.com'
+                'User-Agent': 'Mozilla/5.0',
+                'Content-Type': 'application/json'
             }
         });
         
         const token = authRes.data.access_token;
-        console.log('✅ Login Sorte na Bet OK');
         
-        // 2. Gerar EVOSESSIONID na Evolution
+        // Gerar EVOSESSIONID
         const evoRes = await axios.post('https://sortenabet.evo-games.com/api/v1/session/init', {
             token: token,
             game_type: 'topcard',
             platform: 'web',
-            client_version: '6.20260612.73024.62644-7774ff9958-r2',
             table_id: 'TopCard000000001'
         });
         
-        const sessionId = evoRes.data.sessionId;
-        console.log('✅ EVOSESSIONID gerado');
-        
-        // 3. Retornar URL do iframe
         res.json({
             success: true,
-            iframeUrl: `https://sortenabet.evo-games.com/frontend/evo/r2/?EVOSESSIONID=${sessionId}&table_id=TopCard000000001`
+            iframeUrl: `https://sortenabet.evo-games.com/frontend/evo/r2/?EVOSESSIONID=${evoRes.data.sessionId}`
         });
         
     } catch (error) {
-        console.error('❌ Erro:', error.response?.data || error.message);
+        console.error('❌ Erro:', error.message);
         res.status(401).json({
             success: false,
             error: 'Email ou senha inválidos'
