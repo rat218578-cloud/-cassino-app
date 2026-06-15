@@ -8,30 +8,32 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Cache de sessões
 const sessions = new Map();
 
-// ========== HEALTHCHECK (RAILWAY) ==========
-// O Railway espera uma resposta na raiz
+// Healthcheck
 app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'ok', 
-        timestamp: Date.now(),
-        sessions: sessions.size 
-    });
+    res.status(200).json({ status: 'ok', sessions: sessions.size });
 });
 
-// Rota raiz também responde para o healthcheck
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
 });
 
-// ========== 1. LOGIN ==========
+// ========== LOGIN ==========
 app.post('/api/cassino/login', async (req, res) => {
     const { email, password, captcha_token } = req.body;
     
+    // Verifica se o captcha foi enviado
+    if (!captcha_token) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'Captcha é obrigatório' 
+        });
+    }
+    
     try {
-        console.log('📝 Tentando login para:', email);
+        console.log('📝 Login para:', email);
+        console.log('🔑 Captcha token:', captcha_token.substring(0, 30) + '...');
         
         const response = await axios.post('https://api-front.appbackend.tech/api/auth/login', {
             login: email,
@@ -67,7 +69,8 @@ app.post('/api/cassino/login', async (req, res) => {
                 session_id: sessionId,
                 access_token: data.access_token,
                 user: data.user,
-                expires_in: data.expires_in
+                expires_in: data.expires_in,
+                expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000)
             });
         } else {
             throw new Error('Resposta sem access_token');
@@ -82,9 +85,9 @@ app.post('/api/cassino/login', async (req, res) => {
     }
 });
 
-// ========== 2. INICIAR JOGO (gera EVOSESSIONID) ==========
+// ========== INICIAR JOGO ==========
 app.post('/api/cassino/start-game', async (req, res) => {
-    const { session_id, game_slug, table_id } = req.body;
+    const { session_id, game_slug } = req.body;
     
     const session = sessions.get(session_id);
     if (!session) {
@@ -92,11 +95,12 @@ app.post('/api/cassino/start-game', async (req, res) => {
     }
     
     const slug = game_slug || 'evolution/football-studio-dice';
-    const tableType = table_id || 'TopDice000000001';
     
     try {
         const tabId = crypto.randomUUID();
         const mountedId = crypto.randomUUID();
+        
+        console.log('🎮 Iniciando jogo para:', session.email);
         
         const response = await axios.get(`https://api-front.appbackend.tech/api/start-game-v2`, {
             params: {
@@ -118,10 +122,8 @@ app.post('/api/cassino/start-game', async (req, res) => {
         
         const data = response.data;
         
-        let verificationToken = data.verification_token || 
-                              data.token || 
-                              data.evo_session_id ||
-                              data.session_id;
+        // Extrai o verification_token
+        let verificationToken = data.verification_token || data.token;
         
         if (!verificationToken && data.iframe_url) {
             const match = data.iframe_url.match(/[?&]token=([^&]+)/);
@@ -133,15 +135,15 @@ app.post('/api/cassino/start-game', async (req, res) => {
         }
         
         session.evo_token = verificationToken;
-        session.game_slug = slug;
         
-        const gameUrl = `https://sortenabet.evo-games.com/frontend/evo/r2/?table_id=${tableType}&token=${verificationToken}`;
+        const gameUrl = `https://sortenabet.evo-games.com/frontend/evo/r2/?table_id=TopDice000000001&token=${verificationToken}`;
+        
+        console.log('✅ Jogo iniciado, token gerado');
         
         res.json({
             success: true,
             verification_token: verificationToken,
-            game_url: gameUrl,
-            table_id: tableType
+            game_url: gameUrl
         });
         
     } catch (error) {
@@ -153,7 +155,7 @@ app.post('/api/cassino/start-game', async (req, res) => {
     }
 });
 
-// ========== 3. VERIFICAR SESSÃO ==========
+// ========== VERIFICAR SESSÃO ==========
 app.post('/api/cassino/verify', async (req, res) => {
     const { session_id } = req.body;
     
@@ -174,85 +176,18 @@ app.post('/api/cassino/verify', async (req, res) => {
     });
 });
 
-// ========== 4. RENOVAR TOKEN DO JOGO ==========
-app.post('/api/cassino/refresh-game', async (req, res) => {
-    const { session_id, game_slug, table_id } = req.body;
-    
-    const session = sessions.get(session_id);
-    if (!session) {
-        return res.status(401).json({ success: false, error: 'Sessão inválida' });
-    }
-    
-    const slug = game_slug || session.game_slug || 'evolution/football-studio-dice';
-    const tableType = table_id || 'TopDice000000001';
-    
-    try {
-        const tabId = crypto.randomUUID();
-        const mountedId = crypto.randomUUID();
-        
-        const response = await axios.get(`https://api-front.appbackend.tech/api/start-game-v2`, {
-            params: {
-                slug: slug,
-                platform: 'WEB',
-                use_demo: 0,
-                source: 'watchIsAuthenticated',
-                tab_id: tabId,
-                mounted_id: mountedId
-            },
-            headers: {
-                'Authorization': `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json',
-                'Origin': 'https://sortenabet.bet.br',
-                'Referer': 'https://sortenabet.bet.br/'
-            },
-            timeout: 30000
-        });
-        
-        const data = response.data;
-        
-        let verificationToken = data.verification_token || data.token || data.evo_session_id;
-        
-        if (!verificationToken && data.iframe_url) {
-            const match = data.iframe_url.match(/[?&]token=([^&]+)/);
-            if (match) verificationToken = match[1];
-        }
-        
-        session.evo_token = verificationToken;
-        
-        const gameUrl = `https://sortenabet.evo-games.com/frontend/evo/r2/?table_id=${tableType}&token=${verificationToken}`;
-        
-        res.json({
-            success: true,
-            verification_token: verificationToken,
-            game_url: gameUrl
-        });
-        
-    } catch (error) {
-        console.error('❌ Erro ao renovar:', error.message);
-        res.status(500).json({ success: false, error: 'Falha ao renovar token do jogo' });
-    }
-});
-
-// Limpeza periódica de sessões expiradas
+// Limpeza periódica
 setInterval(() => {
     const now = Date.now();
     for (const [key, session] of sessions.entries()) {
         if (session.expires_at < now) {
             sessions.delete(key);
-            console.log(`🧹 Sessão ${key} expirada e removida`);
+            console.log(`🧹 Sessão ${key} expirada`);
         }
     }
-}, 60 * 60 * 1000); // A cada hora
+}, 60 * 60 * 1000);
 
-// Pega a porta do Railway (ou 3000 para local)
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
-    console.log(`📝 Healthcheck: http://localhost:${PORT}/health`);
-    console.log(`📝 Endpoints disponíveis:`);
-    console.log(`   POST /api/cassino/login`);
-    console.log(`   POST /api/cassino/start-game`);
-    console.log(`   POST /api/cassino/verify`);
-    console.log(`   POST /api/cassino/refresh-game`);
 });
