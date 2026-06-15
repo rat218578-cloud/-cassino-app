@@ -2,83 +2,40 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Sorte na Bet - Login</title>
+    <title>Sorte na Bet - Jogo</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: system-ui, sans-serif;
-            background: #0a0c12;
-            height: 100vh;
-            overflow: hidden;
-        }
-        .game-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
+        body { font-family: system-ui; background: #0a0c12; height: 100vh; overflow: hidden; }
+        .game-frame { width: 100%; height: 100%; border: none; }
         .login-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.95);
-            backdrop-filter: blur(20px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); backdrop-filter: blur(20px);
+            display: flex; align-items: center; justify-content: center; z-index: 1000;
             transition: 0.3s;
         }
-        .login-overlay.hidden {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
+        .login-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
         .login-card {
             background: linear-gradient(145deg, #13161f, #0b0e16);
-            border-radius: 40px;
-            padding: 2rem;
-            width: 90%;
-            max-width: 400px;
+            border-radius: 40px; padding: 2rem; width: 90%; max-width: 400px;
             border: 1px solid #00e676;
         }
-        .login-card h1 {
-            color: #00e676;
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
+        .login-card h1 { color: #00e676; text-align: center; margin-bottom: 1.5rem; }
         input {
-            width: 100%;
-            padding: 14px;
-            margin: 8px 0;
-            background: #1a1e2a;
-            border: 1px solid #2a2e3a;
-            border-radius: 30px;
-            color: white;
-            font-size: 1rem;
+            width: 100%; padding: 14px; margin: 8px 0;
+            background: #1a1e2a; border: 1px solid #2a2e3a;
+            border-radius: 30px; color: white; font-size: 1rem;
         }
         button {
-            width: 100%;
-            padding: 14px;
-            margin-top: 1rem;
+            width: 100%; padding: 14px; margin-top: 1rem;
             background: linear-gradient(105deg, #00b248, #00e676);
-            border: none;
-            border-radius: 30px;
-            font-weight: bold;
-            cursor: pointer;
+            border: none; border-radius: 30px; font-weight: bold; cursor: pointer;
         }
-        .message {
-            margin-top: 1rem;
-            padding: 10px;
-            border-radius: 20px;
-            text-align: center;
-            font-size: 0.85rem;
-        }
+        .message { margin-top: 1rem; padding: 10px; border-radius: 20px; text-align: center; font-size: 0.85rem; }
         .error { background: rgba(255,70,70,0.2); color: #ff7a7a; }
         .success { background: rgba(0,230,118,0.2); color: #6ef0a0; }
         .loading { display: none; text-align: center; margin-top: 1rem; color: #00e676; }
         .loading.active { display: block; }
+        .token-info { position: fixed; bottom: 10px; right: 10px; font-size: 10px; color: #666; z-index: 1001; }
     </style>
 </head>
 <body>
@@ -95,12 +52,13 @@
             <div id="loading" class="loading">Autenticando...</div>
         </div>
     </div>
+    <div id="tokenInfo" class="token-info"></div>
 
-    <!-- Cloudflare Turnstile -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-    
     <script>
         let turnstileToken = null;
+        let currentSessionId = localStorage.getItem('session_id');
+        let refreshInterval = null;
         
         // Inicializa Turnstile
         turnstile.ready(function() {
@@ -108,10 +66,125 @@
                 sitekey: '0x4AAAAAAAykd8yJm3kQzNJc',
                 callback: function(token) {
                     turnstileToken = token;
-                    console.log('✅ Captcha resolvido:', token);
+                    console.log('✅ Captcha resolvido');
                 }
             });
         });
+        
+        // Mostra info do token
+        function updateTokenInfo(expiresAt) {
+            const infoDiv = document.getElementById('tokenInfo');
+            if (expiresAt) {
+                const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000 / 60 / 60 / 24));
+                infoDiv.innerHTML = `🔑 Token válido por mais ${remaining} dias | ${new Date(expiresAt).toLocaleDateString()}`;
+            } else {
+                infoDiv.innerHTML = '';
+            }
+        }
+        
+        // Verificar sessão ao carregar
+        async function verificarSessao() {
+            if (!currentSessionId) return false;
+            
+            try {
+                const response = await fetch('/api/cassino/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: currentSessionId })
+                });
+                const data = await response.json();
+                
+                if (data.valid) {
+                    console.log('✅ Sessão válida, expires em:', new Date(data.expires_at));
+                    updateTokenInfo(data.expires_at);
+                    await iniciarJogo();
+                    
+                    // Configura renovação automática 1 dia antes de expirar
+                    if (data.expires_at) {
+                        const msUntilExpiry = data.expires_at - Date.now();
+                        const msToRefresh = msUntilExpiry - (24 * 60 * 60 * 1000); // 1 dia antes
+                        if (msToRefresh > 0) {
+                            setTimeout(() => {
+                                console.log('🔄 Agendando renovação automática...');
+                                renovarTokenAutomaticamente();
+                            }, msToRefresh);
+                        }
+                    }
+                    return true;
+                } else if (data.expired) {
+                    console.log('⚠️ Sessão expirada');
+                    localStorage.removeItem('session_id');
+                    currentSessionId = null;
+                }
+            } catch(e) {
+                console.error('Erro ao verificar sessão:', e);
+            }
+            return false;
+        }
+        
+        // Renovação automática
+        async function renovarTokenAutomaticamente() {
+            console.log('🔄 Tentando renovar token automaticamente...');
+            const email = localStorage.getItem('user_email');
+            const password = localStorage.getItem('user_password');
+            
+            if (email && password) {
+                // Mostra mensagem de renovação
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = '<div class="message info">🔄 Renovando sessão automática...</div>';
+                
+                try {
+                    const response = await fetch('/api/cassino/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            email: email, 
+                            password: password, 
+                            captcha_token: turnstileToken 
+                        })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        currentSessionId = data.session_id;
+                        localStorage.setItem('session_id', currentSessionId);
+                        localStorage.setItem('user_email', email);
+                        localStorage.setItem('user_password', password);
+                        localStorage.setItem('expires_at', data.expires_at);
+                        console.log('✅ Token renovado automaticamente!');
+                        await iniciarJogo();
+                    }
+                } catch(e) {
+                    console.error('Falha na renovação automática:', e);
+                }
+            }
+        }
+        
+        async function iniciarJogo() {
+            try {
+                const response = await fetch('/api/cassino/start-game', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        session_id: currentSessionId,
+                        game_slug: 'evolution/football-studio-dice'
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('🎮 Jogo iniciado com sucesso!');
+                    document.getElementById('gameFrame').src = data.game_url;
+                    document.getElementById('loginOverlay').classList.add('hidden');
+                } else {
+                    console.error('Erro ao iniciar jogo:', data.error);
+                    document.getElementById('loginOverlay').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Erro ao iniciar jogo:', error);
+                document.getElementById('loginOverlay').classList.remove('hidden');
+            }
+        }
         
         async function fazerLogin() {
             const email = document.getElementById('email').value;
@@ -123,9 +196,8 @@
                 messageDiv.innerHTML = '<div class="message error">Preencha email e senha</div>';
                 return;
             }
-            
             if (!turnstileToken) {
-                messageDiv.innerHTML = '<div class="message error">Complete o captcha primeiro</div>';
+                messageDiv.innerHTML = '<div class="message error">Complete o captcha</div>';
                 return;
             }
             
@@ -136,37 +208,34 @@
                 const response = await fetch('/api/cassino/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        email: email,
-                        password: password,
-                        captcha_token: turnstileToken
-                    })
+                    body: JSON.stringify({ email, password, captcha_token: turnstileToken })
                 });
-                
                 const data = await response.json();
                 
                 if (data.success) {
-                    messageDiv.innerHTML = '<div class="message success">✅ Login realizado! Carregando jogo...</div>';
+                    currentSessionId = data.session_id;
+                    localStorage.setItem('session_id', currentSessionId);
+                    localStorage.setItem('user_email', email);
+                    localStorage.setItem('user_password', password);
+                    localStorage.setItem('expires_at', data.expires_at);
                     
-                    // Salva tokens
-                    localStorage.setItem('access_token', data.access_token);
-                    localStorage.setItem('evo_session', data.evo_session_id);
-                    
-                    setTimeout(() => {
-                        document.getElementById('gameFrame').src = data.game_url;
-                        document.getElementById('loginOverlay').classList.add('hidden');
-                    }, 1500);
+                    messageDiv.innerHTML = `<div class="message success">✅ Login realizado! Token válido por 7 dias</div>`;
+                    updateTokenInfo(data.expires_at);
+                    await iniciarJogo();
                 } else {
-                    messageDiv.innerHTML = `<div class="message error">❌ ${data.error || 'Falha no login'}</div>`;
+                    messageDiv.innerHTML = `<div class="message error">❌ ${data.error}</div>`;
                     turnstile.reset();
                     turnstileToken = null;
                 }
-            } catch (error) {
-                messageDiv.innerHTML = `<div class="message error">❌ Erro: ${error.message}</div>`;
+            } catch(error) {
+                messageDiv.innerHTML = `<div class="message error">❌ ${error.message}</div>`;
             } finally {
                 loadingDiv.classList.remove('active');
             }
         }
+        
+        // Inicializa
+        verificarSessao();
     </script>
 </body>
 </html>
