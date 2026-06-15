@@ -2,291 +2,171 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sorte na Bet - Login</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: system-ui, sans-serif;
             background: #0a0c12;
-            overflow: hidden;
             height: 100vh;
+            overflow: hidden;
         }
-        
-        /* Iframe do jogo */
-        .game-iframe {
-            position: fixed;
-            top: 0;
-            left: 0;
+        .game-frame {
             width: 100%;
             height: 100%;
             border: none;
-            z-index: 1;
         }
-        
-        /* Overlay de login */
         .login-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.95);
+            background: rgba(0,0,0,0.95);
             backdrop-filter: blur(20px);
-            z-index: 1000;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.5s;
+            z-index: 1000;
+            transition: 0.3s;
         }
-        
         .login-overlay.hidden {
             opacity: 0;
             visibility: hidden;
             pointer-events: none;
         }
-        
         .login-card {
             background: linear-gradient(145deg, #13161f, #0b0e16);
-            border-radius: 48px;
-            padding: 2.5rem;
+            border-radius: 40px;
+            padding: 2rem;
             width: 90%;
-            max-width: 440px;
-            border: 1px solid rgba(0, 230, 118, 0.3);
-            box-shadow: 0 30px 50px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            border: 1px solid #00e676;
         }
-        
         .login-card h1 {
-            font-size: 2.3rem;
-            background: linear-gradient(135deg, #00e676, #00b0f0);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
+            color: #00e676;
             text-align: center;
             margin-bottom: 1.5rem;
         }
-        
-        .input-group {
-            margin-bottom: 1rem;
-        }
-        
-        .input-group label {
-            display: block;
-            color: #b0bbd4;
-            font-size: 0.75rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .input-group input {
+        input {
             width: 100%;
-            padding: 14px 18px;
-            background: #0c0f17;
-            border: 1.5px solid #252b3a;
-            border-radius: 28px;
+            padding: 14px;
+            margin: 8px 0;
+            background: #1a1e2a;
+            border: 1px solid #2a2e3a;
+            border-radius: 30px;
             color: white;
             font-size: 1rem;
-            outline: none;
         }
-        
-        .input-group input:focus {
-            border-color: #00e676;
-        }
-        
-        .login-btn {
+        button {
             width: 100%;
             padding: 14px;
             margin-top: 1rem;
             background: linear-gradient(105deg, #00b248, #00e676);
             border: none;
-            border-radius: 60px;
-            color: #0a0c12;
+            border-radius: 30px;
             font-weight: bold;
-            font-size: 1rem;
             cursor: pointer;
         }
-        
         .message {
             margin-top: 1rem;
             padding: 10px;
-            border-radius: 30px;
+            border-radius: 20px;
             text-align: center;
             font-size: 0.85rem;
         }
-        
-        .error {
-            background: rgba(255, 70, 70, 0.2);
-            color: #ff7a7a;
-        }
-        
-        .success {
-            background: rgba(0, 230, 118, 0.2);
-            color: #6ef0a0;
-        }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            margin-top: 1rem;
-            color: #00e676;
-        }
-        
-        .loading.active {
-            display: block;
-        }
-        
-        .spinner {
-            display: inline-block;
-            width: 24px;
-            height: 24px;
-            border: 3px solid #252b3a;
-            border-top-color: #00e676;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .back-btn {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            border: 1px solid #00e676;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 30px;
-            cursor: pointer;
-            z-index: 1001;
-            display: none;
-        }
-        
-        .back-btn.active {
-            display: block;
-        }
+        .error { background: rgba(255,70,70,0.2); color: #ff7a7a; }
+        .success { background: rgba(0,230,118,0.2); color: #6ef0a0; }
+        .loading { display: none; text-align: center; margin-top: 1rem; color: #00e676; }
+        .loading.active { display: block; }
     </style>
 </head>
 <body>
-    <iframe id="gameFrame" class="game-iframe" src="about:blank"></iframe>
+    <iframe id="gameFrame" class="game-frame" src="about:blank"></iframe>
     
     <div id="loginOverlay" class="login-overlay">
         <div class="login-card">
             <h1>SORTE NA BET</h1>
-            <div class="input-group">
-                <label>📧 E-MAIL</label>
-                <input type="email" id="email" placeholder="seu@email.com">
-            </div>
-            <div class="input-group">
-                <label>🔒 SENHA</label>
-                <input type="password" id="senha" placeholder="••••••••">
-            </div>
-            <button class="login-btn" id="loginBtn">ENTRAR E JOGAR</button>
+            <input type="email" id="email" placeholder="E-mail" value="gcriste268@gmail.com">
+            <input type="password" id="password" placeholder="Senha" value="284050">
+            <div id="captchaContainer"></div>
+            <button onclick="fazerLogin()">ENTRAR</button>
             <div id="message" class="message"></div>
-            <div id="loading" class="loading">
-                <div class="spinner"></div>
-                <div>Autenticando...</div>
-            </div>
+            <div id="loading" class="loading">Autenticando...</div>
         </div>
     </div>
-    
-    <button id="backBtn" class="back-btn" onclick="voltarLogin()">← Voltar / Trocar conta</button>
 
+    <!-- Cloudflare Turnstile -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    
     <script>
-        // Verifica se já tem sessão ativa
-        async function verificarSessao() {
-            try {
-                const response = await fetch('/api/check-session');
-                const data = await response.json();
-                
-                if (data.valid) {
-                    console.log('✅ Sessão encontrada, carregando jogo...');
-                    carregarJogo();
-                } else {
-                    console.log('⚠️ Sem sessão ativa, mostrar login');
-                }
-            } catch (error) {
-                console.error('Erro ao verificar sessão:', error);
-            }
-        }
+        let turnstileToken = null;
         
-        async function carregarJogo() {
-            try {
-                const response = await fetch('/api/game-url');
-                const data = await response.json();
-                
-                if (data.url) {
-                    document.getElementById('gameFrame').src = data.url;
-                    document.getElementById('loginOverlay').classList.add('hidden');
-                    document.getElementById('backBtn').classList.add('active');
+        // Inicializa Turnstile
+        turnstile.ready(function() {
+            turnstile.render('#captchaContainer', {
+                sitekey: '0x4AAAAAAAykd8yJm3kQzNJc',
+                callback: function(token) {
+                    turnstileToken = token;
+                    console.log('✅ Captcha resolvido:', token);
                 }
-            } catch (error) {
-                console.error('Erro ao carregar jogo:', error);
-            }
-        }
+            });
+        });
         
         async function fazerLogin() {
             const email = document.getElementById('email').value;
-            const senha = document.getElementById('senha').value;
+            const password = document.getElementById('password').value;
             const messageDiv = document.getElementById('message');
             const loadingDiv = document.getElementById('loading');
-            const loginBtn = document.getElementById('loginBtn');
             
-            if (!email || !senha) {
+            if (!email || !password) {
                 messageDiv.innerHTML = '<div class="message error">Preencha email e senha</div>';
+                return;
+            }
+            
+            if (!turnstileToken) {
+                messageDiv.innerHTML = '<div class="message error">Complete o captcha primeiro</div>';
                 return;
             }
             
             messageDiv.innerHTML = '';
             loadingDiv.classList.add('active');
-            loginBtn.disabled = true;
             
             try {
-                const response = await fetch('/api/login', {
+                const response = await fetch('/api/cassino/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, senha })
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        captcha_token: turnstileToken
+                    })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
                     messageDiv.innerHTML = '<div class="message success">✅ Login realizado! Carregando jogo...</div>';
+                    
+                    // Salva tokens
+                    localStorage.setItem('access_token', data.access_token);
+                    localStorage.setItem('evo_session', data.evo_session_id);
+                    
                     setTimeout(() => {
-                        carregarJogo();
-                    }, 1000);
+                        document.getElementById('gameFrame').src = data.game_url;
+                        document.getElementById('loginOverlay').classList.add('hidden');
+                    }, 1500);
                 } else {
-                    messageDiv.innerHTML = `<div class="message error">❌ Erro: ${data.error}</div>`;
+                    messageDiv.innerHTML = `<div class="message error">❌ ${data.error || 'Falha no login'}</div>`;
+                    turnstile.reset();
+                    turnstileToken = null;
                 }
             } catch (error) {
-                messageDiv.innerHTML = `<div class="message error">❌ Erro de conexão: ${error.message}</div>`;
+                messageDiv.innerHTML = `<div class="message error">❌ Erro: ${error.message}</div>`;
             } finally {
                 loadingDiv.classList.remove('active');
-                loginBtn.disabled = false;
             }
         }
-        
-        async function voltarLogin() {
-            await fetch('/api/logout', { method: 'POST' });
-            document.getElementById('gameFrame').src = 'about:blank';
-            document.getElementById('loginOverlay').classList.remove('hidden');
-            document.getElementById('backBtn').classList.remove('active');
-            document.getElementById('email').value = '';
-            document.getElementById('senha').value = '';
-            document.getElementById('message').innerHTML = '';
-        }
-        
-        document.getElementById('loginBtn').addEventListener('click', fazerLogin);
-        document.getElementById('email').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') fazerLogin();
-        });
-        document.getElementById('senha').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') fazerLogin();
-        });
-        
-        // Inicializa
-        verificarSessao();
     </script>
 </body>
 </html>
