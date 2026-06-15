@@ -30,12 +30,23 @@
             background: linear-gradient(105deg, #00b248, #00e676);
             border: none; border-radius: 30px; font-weight: bold; cursor: pointer;
         }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
         .message { margin-top: 1rem; padding: 10px; border-radius: 20px; text-align: center; font-size: 0.85rem; }
         .error { background: rgba(255,70,70,0.2); color: #ff7a7a; }
         .success { background: rgba(0,230,118,0.2); color: #6ef0a0; }
+        .info { background: rgba(0,150,230,0.2); color: #6ec8f0; }
         .loading { display: none; text-align: center; margin-top: 1rem; color: #00e676; }
         .loading.active { display: block; }
-        .token-info { position: fixed; bottom: 10px; right: 10px; font-size: 10px; color: #666; z-index: 1001; }
+        .token-info { position: fixed; bottom: 10px; right: 10px; font-size: 10px; color: #666; z-index: 1001; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 10px; }
+        .captcha-status {
+            font-size: 0.7rem;
+            color: #888;
+            text-align: center;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -47,7 +58,8 @@
             <input type="email" id="email" placeholder="E-mail" value="gcriste268@gmail.com">
             <input type="password" id="password" placeholder="Senha" value="284050">
             <div id="captchaContainer"></div>
-            <button onclick="fazerLogin()">ENTRAR</button>
+            <div id="captchaStatus" class="captcha-status">⏳ Aguardando captcha...</div>
+            <button id="loginBtn" onclick="fazerLogin()" disabled>ENTRAR</button>
             <div id="message" class="message"></div>
             <div id="loading" class="loading">Autenticando...</div>
         </div>
@@ -58,15 +70,35 @@
     <script>
         let turnstileToken = null;
         let currentSessionId = localStorage.getItem('session_id');
-        let refreshInterval = null;
+        let isCaptchaReady = false;
+        const loginBtn = document.getElementById('loginBtn');
+        const captchaStatus = document.getElementById('captchaStatus');
         
         // Inicializa Turnstile
         turnstile.ready(function() {
+            console.log('🔄 Turnstile pronto, renderizando...');
             turnstile.render('#captchaContainer', {
                 sitekey: '0x4AAAAAAAykd8yJm3kQzNJc',
                 callback: function(token) {
                     turnstileToken = token;
-                    console.log('✅ Captcha resolvido');
+                    isCaptchaReady = true;
+                    loginBtn.disabled = false;
+                    captchaStatus.innerHTML = '✅ Captcha resolvido!';
+                    captchaStatus.style.color = '#6ef0a0';
+                    console.log('✅ Captcha resolvido:', token.substring(0, 20) + '...');
+                },
+                'expired-callback': function() {
+                    console.log('⚠️ Captcha expirou');
+                    turnstileToken = null;
+                    isCaptchaReady = false;
+                    loginBtn.disabled = true;
+                    captchaStatus.innerHTML = '⚠️ Captcha expirado, resolva novamente';
+                    captchaStatus.style.color = '#ff7a7a';
+                },
+                'error-callback': function() {
+                    console.log('❌ Erro no captcha');
+                    captchaStatus.innerHTML = '❌ Erro no captcha, tente novamente';
+                    captchaStatus.style.color = '#ff7a7a';
                 }
             });
         });
@@ -82,11 +114,12 @@
             }
         }
         
-        // Verificar sessão ao carregar
+        // Verificar sessão ao carregar (NÃO precisa de captcha)
         async function verificarSessao() {
             if (!currentSessionId) return false;
             
             try {
+                console.log('🔍 Verificando sessão existente...');
                 const response = await fetch('/api/cassino/verify', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -95,24 +128,12 @@
                 const data = await response.json();
                 
                 if (data.valid) {
-                    console.log('✅ Sessão válida, expires em:', new Date(data.expires_at));
+                    console.log('✅ Sessão válida, carregando jogo...');
                     updateTokenInfo(data.expires_at);
                     await iniciarJogo();
-                    
-                    // Configura renovação automática 1 dia antes de expirar
-                    if (data.expires_at) {
-                        const msUntilExpiry = data.expires_at - Date.now();
-                        const msToRefresh = msUntilExpiry - (24 * 60 * 60 * 1000); // 1 dia antes
-                        if (msToRefresh > 0) {
-                            setTimeout(() => {
-                                console.log('🔄 Agendando renovação automática...');
-                                renovarTokenAutomaticamente();
-                            }, msToRefresh);
-                        }
-                    }
                     return true;
                 } else if (data.expired) {
-                    console.log('⚠️ Sessão expirada');
+                    console.log('⚠️ Sessão expirada, mostrar login');
                     localStorage.removeItem('session_id');
                     currentSessionId = null;
                 }
@@ -122,46 +143,9 @@
             return false;
         }
         
-        // Renovação automática
-        async function renovarTokenAutomaticamente() {
-            console.log('🔄 Tentando renovar token automaticamente...');
-            const email = localStorage.getItem('user_email');
-            const password = localStorage.getItem('user_password');
-            
-            if (email && password) {
-                // Mostra mensagem de renovação
-                const messageDiv = document.getElementById('message');
-                messageDiv.innerHTML = '<div class="message info">🔄 Renovando sessão automática...</div>';
-                
-                try {
-                    const response = await fetch('/api/cassino/login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            email: email, 
-                            password: password, 
-                            captcha_token: turnstileToken 
-                        })
-                    });
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        currentSessionId = data.session_id;
-                        localStorage.setItem('session_id', currentSessionId);
-                        localStorage.setItem('user_email', email);
-                        localStorage.setItem('user_password', password);
-                        localStorage.setItem('expires_at', data.expires_at);
-                        console.log('✅ Token renovado automaticamente!');
-                        await iniciarJogo();
-                    }
-                } catch(e) {
-                    console.error('Falha na renovação automática:', e);
-                }
-            }
-        }
-        
         async function iniciarJogo() {
             try {
+                console.log('🎮 Iniciando jogo com session_id:', currentSessionId);
                 const response = await fetch('/api/cassino/start-game', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -174,14 +158,15 @@
                 
                 if (data.success) {
                     console.log('🎮 Jogo iniciado com sucesso!');
+                    console.log('🔑 Verification token:', data.verification_token?.substring(0, 50) + '...');
                     document.getElementById('gameFrame').src = data.game_url;
                     document.getElementById('loginOverlay').classList.add('hidden');
                 } else {
-                    console.error('Erro ao iniciar jogo:', data.error);
+                    console.error('❌ Erro ao iniciar jogo:', data.error);
                     document.getElementById('loginOverlay').classList.remove('hidden');
                 }
             } catch (error) {
-                console.error('Erro ao iniciar jogo:', error);
+                console.error('❌ Erro ao iniciar jogo:', error);
                 document.getElementById('loginOverlay').classList.remove('hidden');
             }
         }
@@ -192,45 +177,65 @@
             const messageDiv = document.getElementById('message');
             const loadingDiv = document.getElementById('loading');
             
+            // Validações
             if (!email || !password) {
                 messageDiv.innerHTML = '<div class="message error">Preencha email e senha</div>';
                 return;
             }
-            if (!turnstileToken) {
-                messageDiv.innerHTML = '<div class="message error">Complete o captcha</div>';
+            
+            if (!turnstileToken || !isCaptchaReady) {
+                messageDiv.innerHTML = '<div class="message error">⚠️ Complete o captcha primeiro!</div>';
+                captchaStatus.innerHTML = '⚠️ Por favor, marque o captcha acima';
+                captchaStatus.style.color = '#ff7a7a';
                 return;
             }
             
             messageDiv.innerHTML = '';
             loadingDiv.classList.add('active');
+            loginBtn.disabled = true;
             
             try {
+                console.log('📝 Enviando login para:', email);
+                console.log('🔑 Com captcha token:', turnstileToken.substring(0, 30) + '...');
+                
                 const response = await fetch('/api/cassino/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password, captcha_token: turnstileToken })
+                    body: JSON.stringify({ 
+                        email: email, 
+                        password: password, 
+                        captcha_token: turnstileToken 
+                    })
                 });
+                
                 const data = await response.json();
                 
                 if (data.success) {
+                    console.log('✅ Login bem-sucedido!');
                     currentSessionId = data.session_id;
                     localStorage.setItem('session_id', currentSessionId);
                     localStorage.setItem('user_email', email);
-                    localStorage.setItem('user_password', password);
-                    localStorage.setItem('expires_at', data.expires_at);
                     
-                    messageDiv.innerHTML = `<div class="message success">✅ Login realizado! Token válido por 7 dias</div>`;
+                    messageDiv.innerHTML = '<div class="message success">✅ Login realizado! Carregando jogo...</div>';
                     updateTokenInfo(data.expires_at);
                     await iniciarJogo();
                 } else {
-                    messageDiv.innerHTML = `<div class="message error">❌ ${data.error}</div>`;
+                    console.error('❌ Falha no login:', data.error);
+                    messageDiv.innerHTML = `<div class="message error">❌ ${data.error || 'Falha no login'}</div>`;
+                    // Reseta captcha
                     turnstile.reset();
                     turnstileToken = null;
+                    isCaptchaReady = false;
+                    loginBtn.disabled = true;
+                    captchaStatus.innerHTML = '⏳ Resolva o captcha novamente';
+                    captchaStatus.style.color = '#888';
                 }
             } catch(error) {
-                messageDiv.innerHTML = `<div class="message error">❌ ${error.message}</div>`;
+                console.error('❌ Erro de rede:', error);
+                messageDiv.innerHTML = `<div class="message error">❌ Erro de conexão: ${error.message}</div>`;
             } finally {
                 loadingDiv.classList.remove('active');
+                loginBtn.disabled = !isCaptchaReady;
             }
         }
         
