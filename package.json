@@ -1,7 +1,7 @@
 {
   "name": "sortenabet-backend",
   "version": "1.0.0",
-  "description": "Backend para Sorte na Bet com Evolution Gaming",
+  "description": "Backend para Sorte na Bet - Football Studio Dice",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
