@@ -3,368 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Football Studio - Sinais em Tempo Real</title>
+    <title>Football Studio - Teste</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: #0a0c12;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .login-card {
-            background: linear-gradient(145deg, #13161f, #0b0e16);
-            border-radius: 32px;
-            padding: 2rem;
-            width: 90%;
-            max-width: 420px;
-            text-align: center;
-            border: 1px solid rgba(0, 230, 118, 0.25);
-            box-shadow: 0 20px 35px -10px rgba(0,0,0,0.5);
-        }
-        .login-card h1 {
-            font-size: 2rem;
-            background: linear-gradient(135deg, #00e676, #00b0f0);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            margin-bottom: 8px;
-        }
-        .subtitle {
-            color: #9aa3b8;
-            margin: 8px 0 24px;
-            font-size: 0.9rem;
-        }
-        .login-card input {
-            width: 100%;
-            padding: 14px 18px;
-            margin: 10px 0;
-            background: #0c0f17;
-            border: 1px solid #252b3a;
-            border-radius: 28px;
-            color: white;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        .login-card input:focus {
-            outline: none;
-            border-color: #00e676;
-            background: #11141f;
-        }
-        .login-card button {
-            width: 100%;
-            padding: 14px;
-            margin-top: 20px;
-            background: linear-gradient(105deg, #00b248, #00e676);
-            border: none;
-            border-radius: 60px;
-            color: #0a0c12;
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 16px;
-            transition: transform 0.1s;
-        }
-        .login-card button:active {
-            transform: scale(0.98);
-        }
-        .login-card button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .error-msg { 
-            color: #ff7a7a; 
-            margin-top: 12px; 
-            font-size: 0.8rem;
-            background: rgba(255, 60, 60, 0.1);
-            padding: 10px;
-            border-radius: 12px;
-        }
-        .success-msg { 
-            color: #00e676; 
-            margin-top: 12px;
-            background: rgba(0, 230, 118, 0.1);
-            padding: 10px;
-            border-radius: 12px;
-            font-size: 0.85rem;
-        }
-        .info-msg {
-            color: #ffb74d;
-            margin-top: 12px;
-            background: rgba(255, 183, 77, 0.1);
-            padding: 10px;
-            border-radius: 12px;
-            font-size: 0.8rem;
-        }
-        .game-frame {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: none;
-            display: none;
-            z-index: 100;
-        }
-        .game-frame.active { display: block; }
-        .back-btn {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            background: #1e2332cc;
-            backdrop-filter: blur(10px);
-            border: 1px solid #2a3040;
-            padding: 10px 20px;
-            border-radius: 60px;
-            color: white;
-            cursor: pointer;
-            display: none;
-            z-index: 101;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-        .back-btn:hover {
-            background: #2a3040cc;
-        }
-        .back-btn.active { display: block; }
-        .captcha-container {
-            margin: 15px 0 5px;
-        }
-        .status-badge {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #1e2332cc;
-            backdrop-filter: blur(10px);
-            padding: 8px 16px;
-            border-radius: 60px;
-            font-size: 12px;
-            color: #00e676;
-            display: none;
-            z-index: 102;
-            gap: 8px;
-            align-items: center;
-        }
-        .status-badge.active { display: flex; }
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background: #00e676;
-            border-radius: 50%;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-        .loading-spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #00e676;
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 8px;
-            vertical-align: middle;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        body { font-family: system-ui; background: #0a0c12; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: #13161f; padding: 2rem; border-radius: 32px; max-width: 500px; text-align: center; }
+        input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 28px; border: none; }
+        input { background: #0c0f17; color: white; }
+        button { background: #00e676; font-weight: bold; cursor: pointer; }
+        button:disabled { opacity: 0.5; }
+        .error { color: #ff7a7a; }
+        .success { color: #00e676; }
+        .info { color: #ffb74d; }
+        pre { background: #0c0f17; padding: 1rem; border-radius: 16px; overflow-x: auto; font-size: 11px; text-align: left; }
     </style>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
-
-    <div class="status-badge" id="statusBadge">
-        <div class="status-dot"></div>
-        <span>Jogo Carregado</span>
-    </div>
-
-    <div id="loginBox" class="login-card">
+    <div class="container">
         <h1>⚽ Football Studio</h1>
-        <p class="subtitle">Sinais em Tempo Real</p>
         
-        <input type="email" id="email" placeholder="Email da Sorte na Bet" value="gcriste268@gmail.com">
+        <input type="email" id="email" placeholder="Email" value="gcriste268@gmail.com">
         <input type="password" id="password" placeholder="Senha" value="284050">
         
-        <div class="captcha-container">
-            <div class="cf-turnstile" data-sitekey="0x4AAAAAAAykd8yJm3kQzNJc" data-callback="onCaptchaSuccess"></div>
-        </div>
+        <div class="cf-turnstile" data-sitekey="0x4AAAAAAAykd8yJm3kQzNJc" data-callback="onCaptchaSuccess"></div>
         
-        <button id="loginBtn" disabled>🎮 ENTRAR E JOGAR</button>
+        <button id="loginBtn" disabled>🎮 ENTRAR</button>
         
-        <div id="messageArea"></div>
+        <div id="message"></div>
+        <pre id="debug"></pre>
     </div>
 
-    <button id="backBtn" class="back-btn" onclick="resetGame()">← Voltar</button>
-
-    <iframe id="gameFrame" class="game-frame" allow="autoplay; fullscreen; clipboard-write"></iframe>
-
     <script>
-        let currentCaptchaToken = null;
-        let currentAccessToken = null;
-        let currentEmail = null;
-
-        // URL do backend (mesmo servidor)
-        const API_URL = window.location.origin;
-
+        let captchaToken = null;
+        
         function onCaptchaSuccess(token) {
-            currentCaptchaToken = token;
+            captchaToken = token;
             document.getElementById('loginBtn').disabled = false;
-            document.getElementById('messageArea').innerHTML = '<div class="success-msg">✅ Captcha resolvido! Clique em Entrar.</div>';
+            document.getElementById('message').innerHTML = '<div class="success">✅ Captcha resolvido!</div>';
         }
-
-        function showLoading(message) {
-            document.getElementById('messageArea').innerHTML = `<div class="info-msg"><span class="loading-spinner"></span>${message}</div>`;
+        
+        async function testServer() {
+            try {
+                const response = await fetch('/api/test');
+                const data = await response.json();
+                document.getElementById('debug').innerHTML = `✅ Servidor OK: ${JSON.stringify(data, null, 2)}`;
+                return true;
+            } catch (error) {
+                document.getElementById('debug').innerHTML = `❌ Servidor offline: ${error.message}`;
+                return false;
+            }
         }
-
+        
         async function doLogin() {
-            const email = document.getElementById('email').value.trim();
+            const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const messageArea = document.getElementById('messageArea');
-            const loginBox = document.getElementById('loginBox');
+            const messageDiv = document.getElementById('message');
             
             if (!email || !password) {
-                messageArea.innerHTML = '<div class="error-msg">⚠️ Preencha email e senha</div>';
+                messageDiv.innerHTML = '<div class="error">⚠️ Preencha email e senha</div>';
                 return;
             }
             
-            if (!currentCaptchaToken) {
-                messageArea.innerHTML = '<div class="error-msg">⚠️ Resolva o captcha primeiro</div>';
+            if (!captchaToken) {
+                messageDiv.innerHTML = '<div class="error">⚠️ Resolva o captcha primeiro</div>';
                 return;
             }
             
-            showLoading('Autenticando no servidor...');
+            messageDiv.innerHTML = '<div class="info">🔄 Enviando requisição...</div>';
             
             try {
-                // 🔥 PASSO 1: Envia para seu BACKEND (Railway)
-                const response = await fetch(`${API_URL}/api/login`, {
+                const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        email: email, 
+                    body: JSON.stringify({
+                        email: email,
                         password: password,
-                        captcha_token: currentCaptchaToken
+                        captcha_token: captchaToken
                     })
                 });
                 
                 const data = await response.json();
+                document.getElementById('debug').innerHTML = `📥 Resposta: ${JSON.stringify(data, null, 2)}`;
                 
                 if (data.success && data.access_token) {
-                    currentAccessToken = data.access_token;
-                    currentEmail = email;
-                    showLoading('Login realizado! Carregando jogo...');
+                    messageDiv.innerHTML = '<div class="success">✅ Login realizado com sucesso!</div>';
                     
-                    // 🔥 PASSO 2: Pega URL do jogo via BACKEND
-                    const gameResponse = await fetch(`${API_URL}/api/game-url`, {
+                    // Pega o jogo
+                    const gameResponse = await fetch('/api/game-url', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            email: email,
-                            access_token: currentAccessToken,
-                            slug: 'evolution/football-studio-dice'
-                        })
+                        body: JSON.stringify({ email: email, access_token: data.access_token })
                     });
                     
                     const gameData = await gameResponse.json();
+                    document.getElementById('debug').innerHTML += `\n\n🎮 Jogo: ${JSON.stringify(gameData, null, 2)}`;
                     
                     if (gameData.success && gameData.gameURL) {
-                        const iframe = document.getElementById('gameFrame');
-                        iframe.src = gameData.gameURL;
-                        iframe.classList.add('active');
-                        loginBox.style.display = 'none';
-                        document.getElementById('backBtn').classList.add('active');
-                        document.getElementById('statusBadge').classList.add('active');
-                        
-                        // Salva token para recarregar depois
-                        localStorage.setItem('access_token', currentAccessToken);
-                        localStorage.setItem('user_email', email);
-                        messageArea.innerHTML = '';
-                    } else {
-                        messageArea.innerHTML = '<div class="error-msg">❌ ' + (gameData.error || 'Falha ao carregar o jogo') + '</div>';
+                        messageDiv.innerHTML = '<div class="success">✅ Jogo carregado! Abrindo...</div>';
+                        window.open(gameData.gameURL, '_blank');
                     }
-                    
                 } else {
-                    messageArea.innerHTML = '<div class="error-msg">❌ ' + (data.error || 'Falha na autenticação') + '</div>';
-                    // Reset captcha on error
-                    if (window.turnstile) {
-                        turnstile.reset();
-                        currentCaptchaToken = null;
-                        document.getElementById('loginBtn').disabled = true;
-                    }
+                    messageDiv.innerHTML = '<div class="error">❌ ' + (data.error || 'Falha no login') + '</div>';
                 }
-                
             } catch (error) {
-                console.error('Erro:', error);
-                messageArea.innerHTML = '<div class="error-msg">❌ Erro de conexão com o servidor. Tente novamente.</div>';
+                messageDiv.innerHTML = '<div class="error">❌ Erro: ' + error.message + '</div>';
             }
         }
-
-        function resetGame() {
-            const iframe = document.getElementById('gameFrame');
-            iframe.src = '';
-            iframe.classList.remove('active');
-            document.getElementById('loginBox').style.display = 'block';
-            document.getElementById('backBtn').classList.remove('active');
-            document.getElementById('statusBadge').classList.remove('active');
-            document.getElementById('loginBtn').disabled = true;
-            currentCaptchaToken = null;
-            currentAccessToken = null;
-            document.getElementById('messageArea').innerHTML = '';
-            
-            if (window.turnstile) {
-                turnstile.reset();
-            }
-        }
-
-        // Verificar token salvo
-        const savedToken = localStorage.getItem('access_token');
-        const savedEmail = localStorage.getItem('user_email');
-        if (savedToken && savedEmail) {
-            document.getElementById('email').value = savedEmail;
-            document.getElementById('messageArea').innerHTML = '<div class="info-msg"><span class="loading-spinner"></span>Restaurando sessão...</div>';
-            
-            fetch(`${API_URL}/api/game-url`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: savedEmail, access_token: savedToken })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success && data.gameURL) {
-                    document.getElementById('gameFrame').src = data.gameURL;
-                    document.getElementById('gameFrame').classList.add('active');
-                    document.getElementById('loginBox').style.display = 'none';
-                    document.getElementById('backBtn').classList.add('active');
-                    document.getElementById('statusBadge').classList.add('active');
-                    currentAccessToken = savedToken;
-                    currentEmail = savedEmail;
-                    document.getElementById('messageArea').innerHTML = '';
-                } else {
-                    localStorage.removeItem('access_token');
-                    localStorage.removeItem('user_email');
-                    document.getElementById('messageArea').innerHTML = '<div class="error-msg">Sessão expirada, faça login novamente</div>';
-                }
-            })
-            .catch(() => {
-                localStorage.removeItem('access_token');
-                localStorage.removeItem('user_email');
-                document.getElementById('messageArea').innerHTML = '<div class="error-msg">Erro ao restaurar sessão</div>';
-            });
-        }
-
-        document.getElementById('loginBtn').onclick = doLogin;
         
-        // Enter key support
-        document.getElementById('password').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && !document.getElementById('loginBtn').disabled) {
-                doLogin();
-            }
-        });
+        document.getElementById('loginBtn').onclick = doLogin;
+        testServer(); // Testa se o servidor está rodando
     </script>
-
 </body>
 </html>
