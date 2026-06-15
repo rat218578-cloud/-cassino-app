@@ -286,7 +286,7 @@
         </div>
     </div>
 
-    <button id="backBtn" class="back-btn" onclick="resetToLogin()">← VOLTAR / TROCAR CONTA</button>
+    <button id="backBtn" class="back-btn">← VOLTAR / TROCAR CONTA</button>
     <div id="tokenInfo" class="token-info"></div>
 
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" crossorigin="anonymous"></script>
@@ -295,7 +295,6 @@
         let turnstileToken = null;
         let isCaptchaReady = false;
         let currentSessionId = localStorage.getItem('session_id');
-        let refreshInterval = null;
         
         const loginBtn = document.getElementById('loginBtn');
         const captchaStatus = document.getElementById('captchaStatus');
@@ -396,47 +395,6 @@
             }
         }
 
-        // Renovar token automaticamente
-        async function renovarToken() {
-            console.log('🔄 Tentando renovar token...');
-            
-            if (!turnstileToken) {
-                console.log('⚠️ Sem captcha para renovar');
-                return false;
-            }
-            
-            try {
-                const response = await fetch('/api/cassino/refresh', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: currentSessionId,
-                        captcha_token: turnstileToken
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    console.log('✅ Token renovado com sucesso!');
-                    updateTokenInfo(data.expires_at);
-                    
-                    // Agenda próxima renovação (1 dia antes de expirar)
-                    if (data.expires_at) {
-                        const msUntilExpiry = data.expires_at - Date.now();
-                        const msToRefresh = msUntilExpiry - (24 * 60 * 60 * 1000);
-                        if (msToRefresh > 0) {
-                            setTimeout(() => renovarToken(), msToRefresh);
-                        }
-                    }
-                    return true;
-                }
-            } catch (error) {
-                console.error('❌ Erro ao renovar:', error);
-            }
-            return false;
-        }
-
         // Verificar sessão existente
         async function verificarSessao() {
             if (!currentSessionId) {
@@ -460,24 +418,12 @@
                 if (data.valid) {
                     console.log('✅ Sessão válida!');
                     updateTokenInfo(data.expires_at);
-                    
-                    // Agenda renovação automática (1 dia antes)
-                    if (data.expires_at) {
-                        const msUntilExpiry = data.expires_at - Date.now();
-                        const msToRefresh = msUntilExpiry - (24 * 60 * 60 * 1000);
-                        if (msToRefresh > 0) {
-                            setTimeout(() => renovarToken(), msToRefresh);
-                        }
-                    }
-                    
                     await carregarJogo();
                     return true;
-                } else if (data.expired) {
-                    console.log('⚠️ Sessão expirada');
+                } else {
+                    console.log('⚠️ Sessão inválida');
                     localStorage.removeItem('session_id');
                     currentSessionId = null;
-                    overlay.classList.remove('hidden');
-                } else {
                     overlay.classList.remove('hidden');
                 }
             } catch (error) {
@@ -535,22 +481,13 @@
                     updateTokenInfo(data.expires_at);
                     showMessage('Login realizado! Carregando jogo...', 'success');
                     
-                    // Agenda renovação automática
-                    if (data.expires_at) {
-                        const msUntilExpiry = data.expires_at - Date.now();
-                        const msToRefresh = msUntilExpiry - (24 * 60 * 60 * 1000);
-                        if (msToRefresh > 0) {
-                            setTimeout(() => renovarToken(), msToRefresh);
-                        }
-                    }
-                    
                     setTimeout(() => {
                         carregarJogo();
                     }, 1500);
                 } else {
                     console.error('❌ Falha no login:', data.error);
                     showMessage(data.error || 'Falha no login', 'error');
-                    turnstile.reset();
+                    if (typeof turnstile !== 'undefined') turnstile.reset();
                     turnstileToken = null;
                     isCaptchaReady = false;
                     loginBtn.disabled = true;
@@ -583,13 +520,13 @@
             tokenInfo.innerHTML = '';
         }
 
+        // Adiciona os eventos de clique
+        loginBtn.addEventListener('click', fazerLogin);
+        backBtn.addEventListener('click', resetToLogin);
+        
         // Inicializar
         initTurnstile();
         verificarSessao();
-        
-        // Expor funções globalmente
-        window.fazerLogin = fazerLogin;
-        window.resetToLogin = resetToLogin;
     </script>
 </body>
 </html>
