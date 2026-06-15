@@ -27,7 +27,7 @@ app.get('/', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
 });
 
-// ========== LOGIN - URL CORRETA ==========
+// ========== LOGIN ==========
 app.post('/api/cassino/login', async (req, res) => {
     const { email, password, captcha_token } = req.body;
     
@@ -42,7 +42,6 @@ app.post('/api/cassino/login', async (req, res) => {
     }
     
     try {
-        // URL CORRETA - Usando o mesmo domínio do site
         const API_URL = 'https://sortenabet.bet.br/api/auth/login';
         
         log(`📡 Enviando POST para: ${API_URL}`);
@@ -149,10 +148,12 @@ app.post('/api/cassino/start-game', async (req, res) => {
         log(`📥 Status: ${response.status}`);
         
         let verificationToken = data.verification_token || data.token;
+        let gameUrl = null;
         
         if (!verificationToken && data.iframe_url) {
             const match = data.iframe_url.match(/[?&]token=([^&]+)/);
             if (match) verificationToken = match[1];
+            gameUrl = data.iframe_url;
             log('🔑 Token extraído do iframe_url');
         }
         
@@ -162,9 +163,11 @@ app.post('/api/cassino/start-game', async (req, res) => {
         
         session.evo_token = verificationToken;
         
-        const gameUrl = `https://sortenabet.evo-games.com/frontend/evo/r2/?table_id=TopDice000000001&token=${verificationToken}`;
+        if (!gameUrl) {
+            gameUrl = `https://sortenabet.evo-games.com/frontend/evo/r2/?table_id=TopDice000000001&token=${verificationToken}`;
+        }
         
-        log(`✅ Jogo iniciado! Token: ${verificationToken.substring(0, 30)}...`);
+        log(`✅ Jogo iniciado!`);
         
         res.json({
             success: true,
@@ -200,11 +203,83 @@ app.post('/api/cassino/verify', async (req, res) => {
         return res.json({ valid: false, expired: true });
     }
     
-    res.json({
-        valid: true,
-        has_game_token: !!session.evo_token,
-        expires_at: session.expires_at
-    });
+    // Verifica se o token ainda é válido na API
+    try {
+        const response = await axios.get('https://sortenabet.bet.br/auth', {
+            headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 10000
+        });
+        
+        if (response.status === 200) {
+            res.json({
+                valid: true,
+                has_game_token: !!session.evo_token,
+                expires_at: session.expires_at,
+                user: response.data
+            });
+        } else {
+            throw new Error('Token inválido');
+        }
+    } catch (error) {
+        log(`⚠️ Token expirado na API: ${session.email}`);
+        sessions.delete(session_id);
+        res.json({ valid: false, expired: true });
+    }
+});
+
+// ========== RENOVAR TOKEN ==========
+app.post('/api/cassino/refresh', async (req, res) => {
+    const { session_id, captcha_token } = req.body;
+    
+    const session = sessions.get(session_id);
+    if (!session) {
+        return res.status(401).json({ success: false, error: 'Sessão inválida' });
+    }
+    
+    if (!captcha_token) {
+        return res.status(400).json({ success: false, error: 'Captcha necessário para renovar' });
+    }
+    
+    try {
+        const response = await axios.post('https://sortenabet.bet.br/api/auth/login', {
+            login: session.email,
+            email: session.email,
+            password: null,
+            app_source: 'web',
+            captcha_token: captcha_token,
+            refresh: true
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Origin': 'https://sortenabet.bet.br',
+                'Referer': 'https://sortenabet.bet.br/'
+            },
+            timeout: 30000
+        });
+        
+        const data = response.data;
+        
+        if (data.access_token) {
+            session.access_token = data.access_token;
+            session.expires_at = Date.now() + (7 * 24 * 60 * 60 * 1000);
+            
+            log(`🔄 Token renovado para: ${session.email}`);
+            
+            res.json({
+                success: true,
+                access_token: data.access_token,
+                expires_at: session.expires_at
+            });
+        } else {
+            throw new Error('Não foi possível renovar');
+        }
+    } catch (error) {
+        log(`❌ Erro ao renovar: ${error.message}`);
+        res.status(401).json({ success: false, error: 'Falha ao renovar sessão' });
+    }
 });
 
 // Limpeza de sessões expiradas
