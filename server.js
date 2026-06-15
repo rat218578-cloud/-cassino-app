@@ -16,152 +16,89 @@ function log(message, data = null) {
 
 log('🚀 SERVIDOR INICIANDO...');
 
-// Armazena sessões do navegador headless
 const sessions = new Map();
-
-// URL base da API (pode ser alterada)
-const API_BASE = process.env.API_BASE || 'https://api-front.appbackend.tech';
 
 // Healthcheck
 app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', sessions: sessions.size });
+    res.status(200).json({ status: 'ok', sessions: sessions.size, timestamp: Date.now() });
 });
 
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
 });
 
-// ========== PROXY PARA A API ==========
-// Qualquer requisição para /api/proxy/* é redirecionada para a API real
-app.all('/api/proxy/*', async (req, res) => {
-    const targetPath = req.params[0];
-    const targetUrl = `${API_BASE}/${targetPath}`;
-    
-    // Pega o session_id do header ou body
-    const sessionId = req.headers['x-session-id'] || req.body?.session_id;
-    const session = sessions.get(sessionId);
-    
-    log(`🔄 Proxy: ${req.method} ${targetUrl}`);
-    
-    try {
-        const headers = {
-            'Content-Type': 'application/json',
-            'Origin': 'https://sortenabet.bet.br',
-            'Referer': 'https://sortenabet.bet.br/',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        };
-        
-        // Se tiver sessão, adiciona o token
-        if (session?.access_token) {
-            headers['Authorization'] = `Bearer ${session.access_token}`;
-        }
-        
-        const response = await axios({
-            method: req.method,
-            url: targetUrl,
-            headers: headers,
-            data: req.body,
-            params: req.query,
-            timeout: 30000
-        });
-        
-        res.status(response.status).json(response.data);
-    } catch (error) {
-        log(`❌ Proxy error: ${error.message}`);
-        res.status(error.response?.status || 500).json({
-            error: error.response?.data || error.message
-        });
-    }
-});
-
-// ========== LOGIN ==========
+// ========== LOGIN - URL CORRETA ==========
 app.post('/api/cassino/login', async (req, res) => {
     const { email, password, captcha_token } = req.body;
     
     log(`📝 Tentativa de login: ${email}`);
+    log(`🔑 Captcha: ${captcha_token ? '✅ SIM (length: ' + captcha_token.length + ')' : '❌ NÃO'}`);
     
     if (!captcha_token) {
         return res.status(400).json({ 
             success: false, 
-            error: 'Captcha é obrigatório' 
+            error: 'Captcha é obrigatório. Marque "Não sou um robô".' 
         });
     }
     
     try {
-        // Tenta diferentes endpoints
-        const endpoints = [
-            '/api/auth/login',
-            '/auth/login', 
-            '/v1/auth/login',
-            '/v2/auth/login'
-        ];
+        // URL CORRETA - Usando o mesmo domínio do site
+        const API_URL = 'https://sortenabet.bet.br/api/auth/login';
         
-        let responseData = null;
-        let workingEndpoint = null;
+        log(`📡 Enviando POST para: ${API_URL}`);
         
-        for (const endpoint of endpoints) {
-            try {
-                log(`📡 Tentando: ${API_BASE}${endpoint}`);
-                
-                const response = await axios.post(`${API_BASE}${endpoint}`, {
-                    login: email,
-                    email: email,
-                    password: password,
-                    app_source: 'web',
-                    captcha_token: captcha_token
-                }, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Origin': 'https://sortenabet.bet.br',
-                        'Referer': 'https://sortenabet.bet.br/',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    },
-                    timeout: 10000
-                });
-                
-                if (response.status === 200 && (response.data.access_token || response.data.token)) {
-                    responseData = response.data;
-                    workingEndpoint = endpoint;
-                    break;
-                }
-            } catch (e) {
-                log(`⚠️ Endpoint ${endpoint} falhou: ${e.response?.status || e.message}`);
-            }
-        }
+        const response = await axios.post(API_URL, {
+            login: email,
+            email: email,
+            password: password,
+            app_source: 'web',
+            captcha_token: captcha_token
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Origin': 'https://sortenabet.bet.br',
+                'Referer': 'https://sortenabet.bet.br/',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            timeout: 30000
+        });
         
-        if (!responseData) {
-            throw new Error('Nenhum endpoint de login funcionou');
-        }
+        const data = response.data;
+        log(`📥 Status: ${response.status}`);
         
-        const accessToken = responseData.access_token || responseData.token;
-        
-        if (accessToken) {
+        if (data.access_token) {
             const sessionId = crypto.randomBytes(16).toString('hex');
             sessions.set(sessionId, {
-                access_token: accessToken,
+                access_token: data.access_token,
                 email: email,
                 created_at: Date.now(),
                 expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000)
             });
             
-            log(`✅ Login bem-sucedido! Endpoint: ${workingEndpoint}`);
+            log(`✅ Login bem-sucedido! Session: ${sessionId.substring(0, 16)}...`);
             
             res.json({
                 success: true,
                 session_id: sessionId,
-                access_token: accessToken,
-                user: responseData.user,
+                access_token: data.access_token,
+                user: data.user,
+                expires_in: data.expires_in,
                 expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000)
             });
         } else {
-            throw new Error('Resposta sem token');
+            throw new Error('Resposta sem access_token');
         }
         
     } catch (error) {
         log(`❌ ERRO: ${error.message}`);
+        if (error.response) {
+            log(`📡 Status: ${error.response.status}`);
+            log(`📦 Data: ${JSON.stringify(error.response.data)}`);
+        }
         res.status(401).json({
             success: false,
-            error: 'Falha na autenticação. Verifique se o site está online.'
+            error: error.response?.data?.message || error.message || 'Falha na autenticação'
         });
     }
 });
@@ -170,72 +107,64 @@ app.post('/api/cassino/login', async (req, res) => {
 app.post('/api/cassino/start-game', async (req, res) => {
     const { session_id, game_slug } = req.body;
     
+    log(`🎮 Iniciando jogo - session: ${session_id?.substring(0, 16)}...`);
+    
     const session = sessions.get(session_id);
     if (!session) {
-        return res.status(401).json({ success: false, error: 'Sessão inválida' });
+        log('❌ Sessão inválida');
+        return res.status(401).json({ success: false, error: 'Sessão inválida. Faça login novamente.' });
     }
     
     const slug = game_slug || 'evolution/football-studio-dice';
+    log(`🎲 Game: ${slug}`);
     
     try {
         const tabId = crypto.randomUUID();
         const mountedId = crypto.randomUUID();
         
-        const endpoints = [
-            '/api/start-game-v2',
-            '/start-game-v2',
-            '/v2/start-game'
-        ];
+        const START_GAME_URL = 'https://sortenabet.bet.br/api/start-game-v2';
         
-        let gameData = null;
+        log(`📡 GET para: ${START_GAME_URL}`);
         
-        for (const endpoint of endpoints) {
-            try {
-                log(`📡 Tentando start-game: ${API_BASE}${endpoint}`);
-                
-                const response = await axios.get(`${API_BASE}${endpoint}`, {
-                    params: {
-                        slug: slug,
-                        platform: 'WEB',
-                        use_demo: 0,
-                        source: 'watchIsAuthenticated',
-                        tab_id: tabId,
-                        mounted_id: mountedId
-                    },
-                    headers: {
-                        'Authorization': `Bearer ${session.access_token}`,
-                        'Content-Type': 'application/json',
-                        'Origin': 'https://sortenabet.bet.br',
-                        'Referer': 'https://sortenabet.bet.br/'
-                    },
-                    timeout: 10000
-                });
-                
-                if (response.status === 200) {
-                    gameData = response.data;
-                    break;
-                }
-            } catch (e) {}
-        }
+        const response = await axios.get(START_GAME_URL, {
+            params: {
+                slug: slug,
+                platform: 'WEB',
+                use_demo: 0,
+                source: 'watchIsAuthenticated',
+                tab_id: tabId,
+                mounted_id: mountedId
+            },
+            headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Origin': 'https://sortenabet.bet.br',
+                'Referer': 'https://sortenabet.bet.br/'
+            },
+            timeout: 30000
+        });
         
-        if (!gameData) {
-            throw new Error('Não foi possível iniciar o jogo');
-        }
+        const data = response.data;
+        log(`📥 Status: ${response.status}`);
         
-        let verificationToken = gameData.verification_token || gameData.token;
+        let verificationToken = data.verification_token || data.token;
         
-        if (!verificationToken && gameData.iframe_url) {
-            const match = gameData.iframe_url.match(/[?&]token=([^&]+)/);
+        if (!verificationToken && data.iframe_url) {
+            const match = data.iframe_url.match(/[?&]token=([^&]+)/);
             if (match) verificationToken = match[1];
+            log('🔑 Token extraído do iframe_url');
         }
         
         if (!verificationToken) {
-            throw new Error('Token não encontrado');
+            throw new Error('Não foi possível obter o verification_token');
         }
         
         session.evo_token = verificationToken;
         
         const gameUrl = `https://sortenabet.evo-games.com/frontend/evo/r2/?table_id=TopDice000000001&token=${verificationToken}`;
+        
+        log(`✅ Jogo iniciado! Token: ${verificationToken.substring(0, 30)}...`);
         
         res.json({
             success: true,
@@ -245,9 +174,13 @@ app.post('/api/cassino/start-game', async (req, res) => {
         
     } catch (error) {
         log(`❌ ERRO: ${error.message}`);
+        if (error.response) {
+            log(`📡 Status: ${error.response.status}`);
+            log(`📦 Data: ${JSON.stringify(error.response.data)}`);
+        }
         res.status(500).json({
             success: false,
-            error: error.message || 'Falha ao iniciar o jogo'
+            error: error.response?.data?.message || error.message || 'Falha ao iniciar o jogo'
         });
     }
 });
@@ -262,6 +195,7 @@ app.post('/api/cassino/verify', async (req, res) => {
     }
     
     if (session.expires_at < Date.now()) {
+        log(`⚠️ Sessão expirada: ${session.email}`);
         sessions.delete(session_id);
         return res.json({ valid: false, expired: true });
     }
@@ -273,8 +207,25 @@ app.post('/api/cassino/verify', async (req, res) => {
     });
 });
 
+// Limpeza de sessões expiradas
+setInterval(() => {
+    const now = Date.now();
+    let deleted = 0;
+    for (const [key, session] of sessions.entries()) {
+        if (session.expires_at < now) {
+            sessions.delete(key);
+            deleted++;
+        }
+    }
+    if (deleted > 0) {
+        log(`🧹 ${deleted} sessões expiradas removidas. Total: ${sessions.size}`);
+    }
+}, 60 * 60 * 1000);
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
     log(`🚀 Servidor rodando na porta ${PORT}`);
-    log(`📝 API Base: ${API_BASE}`);
+    log(`📝 Login URL: POST https://sortenabet.bet.br/api/auth/login`);
+    log(`📝 Game URL: GET https://sortenabet.bet.br/api/start-game-v2`);
+    log(`✅ Pronto para receber requisições!`);
 });
