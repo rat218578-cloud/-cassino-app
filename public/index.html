@@ -20,7 +20,6 @@
             position: relative;
         }
 
-        /* Iframe do jogo */
         .game-iframe {
             position: fixed;
             top: 0;
@@ -32,7 +31,6 @@
             background: #0a0f1a;
         }
 
-        /* Overlay de login */
         .login-overlay {
             position: fixed;
             top: 0;
@@ -54,7 +52,6 @@
             pointer-events: none;
         }
 
-        /* Card de login */
         .login-card {
             background: linear-gradient(145deg, #13161f, #0b0e16);
             border-radius: 48px;
@@ -176,6 +173,14 @@
             font-size: 0.8rem;
         }
 
+        .info-msg {
+            background: rgba(0, 150, 230, 0.12);
+            color: #6ec8f0;
+            padding: 10px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+        }
+
         .loading {
             display: none;
             margin: 16px auto 0;
@@ -236,6 +241,18 @@
             background: #ff4444cc;
             border-color: #ff8888;
         }
+
+        .token-info {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            font-size: 10px;
+            color: #666;
+            z-index: 1001;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
@@ -259,7 +276,7 @@
             <div id="captchaContainer"></div>
             <div id="captchaStatus" class="captcha-status">⏳ Aguardando captcha...</div>
 
-            <button class="login-btn" id="loginBtn" onclick="fazerLogin()" disabled>🎰 ENTRAR E JOGAR</button>
+            <button class="login-btn" id="loginBtn" disabled>🎰 ENTRAR E JOGAR</button>
 
             <div id="messageArea" class="message-area"></div>
             <div id="loading" class="loading">
@@ -270,6 +287,7 @@
     </div>
 
     <button id="backBtn" class="back-btn" onclick="resetToLogin()">← VOLTAR / TROCAR CONTA</button>
+    <div id="tokenInfo" class="token-info"></div>
 
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" crossorigin="anonymous"></script>
     
@@ -277,6 +295,7 @@
         let turnstileToken = null;
         let isCaptchaReady = false;
         let currentSessionId = localStorage.getItem('session_id');
+        let refreshInterval = null;
         
         const loginBtn = document.getElementById('loginBtn');
         const captchaStatus = document.getElementById('captchaStatus');
@@ -285,8 +304,8 @@
         const casinoFrame = document.getElementById('casinoFrame');
         const messageArea = document.getElementById('messageArea');
         const loadingDiv = document.getElementById('loading');
+        const tokenInfo = document.getElementById('tokenInfo');
 
-        // Função para mostrar mensagens
         function showMessage(text, type) {
             messageArea.innerHTML = `<div class="${type}-msg">${text}</div>`;
             setTimeout(() => {
@@ -294,6 +313,15 @@
                     messageArea.innerHTML = '';
                 }
             }, 5000);
+        }
+
+        function updateTokenInfo(expiresAt) {
+            if (expiresAt) {
+                const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000 / 60 / 60 / 24));
+                tokenInfo.innerHTML = `🔑 Token válido por mais ${remaining} dias | ${new Date(expiresAt).toLocaleDateString()}`;
+            } else {
+                tokenInfo.innerHTML = '';
+            }
         }
 
         // Inicializa Turnstile
@@ -334,9 +362,10 @@
             });
         }
 
-        // Carregar jogo
+        // Carregar jogo via backend
         async function carregarJogo() {
             console.log('🎮 Carregando jogo...');
+            showMessage('Iniciando jogo...', 'info');
             
             try {
                 const response = await fetch('/api/cassino/start-game', {
@@ -367,6 +396,47 @@
             }
         }
 
+        // Renovar token automaticamente
+        async function renovarToken() {
+            console.log('🔄 Tentando renovar token...');
+            
+            if (!turnstileToken) {
+                console.log('⚠️ Sem captcha para renovar');
+                return false;
+            }
+            
+            try {
+                const response = await fetch('/api/cassino/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: currentSessionId,
+                        captcha_token: turnstileToken
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('✅ Token renovado com sucesso!');
+                    updateTokenInfo(data.expires_at);
+                    
+                    // Agenda próxima renovação (1 dia antes de expirar)
+                    if (data.expires_at) {
+                        const msUntilExpiry = data.expires_at - Date.now();
+                        const msToRefresh = msUntilExpiry - (24 * 60 * 60 * 1000);
+                        if (msToRefresh > 0) {
+                            setTimeout(() => renovarToken(), msToRefresh);
+                        }
+                    }
+                    return true;
+                }
+            } catch (error) {
+                console.error('❌ Erro ao renovar:', error);
+            }
+            return false;
+        }
+
         // Verificar sessão existente
         async function verificarSessao() {
             if (!currentSessionId) {
@@ -389,6 +459,17 @@
                 
                 if (data.valid) {
                     console.log('✅ Sessão válida!');
+                    updateTokenInfo(data.expires_at);
+                    
+                    // Agenda renovação automática (1 dia antes)
+                    if (data.expires_at) {
+                        const msUntilExpiry = data.expires_at - Date.now();
+                        const msToRefresh = msUntilExpiry - (24 * 60 * 60 * 1000);
+                        if (msToRefresh > 0) {
+                            setTimeout(() => renovarToken(), msToRefresh);
+                        }
+                    }
+                    
                     await carregarJogo();
                     return true;
                 } else if (data.expired) {
@@ -451,7 +532,17 @@
                     localStorage.setItem('session_id', currentSessionId);
                     localStorage.setItem('user_email', username);
                     
+                    updateTokenInfo(data.expires_at);
                     showMessage('Login realizado! Carregando jogo...', 'success');
+                    
+                    // Agenda renovação automática
+                    if (data.expires_at) {
+                        const msUntilExpiry = data.expires_at - Date.now();
+                        const msToRefresh = msUntilExpiry - (24 * 60 * 60 * 1000);
+                        if (msToRefresh > 0) {
+                            setTimeout(() => renovarToken(), msToRefresh);
+                        }
+                    }
                     
                     setTimeout(() => {
                         carregarJogo();
@@ -482,18 +573,23 @@
             backBtn.classList.remove('active');
             localStorage.removeItem('session_id');
             currentSessionId = null;
-            turnstile.reset();
+            if (typeof turnstile !== 'undefined') turnstile.reset();
             turnstileToken = null;
             isCaptchaReady = false;
             loginBtn.disabled = true;
             captchaStatus.innerHTML = '⏳ Aguardando captcha...';
             captchaStatus.style.color = '#888';
             messageArea.innerHTML = '';
+            tokenInfo.innerHTML = '';
         }
 
-        // Inicializar Turnstile e verificar sessão
+        // Inicializar
         initTurnstile();
         verificarSessao();
+        
+        // Expor funções globalmente
+        window.fazerLogin = fazerLogin;
+        window.resetToLogin = resetToLogin;
     </script>
 </body>
 </html>
