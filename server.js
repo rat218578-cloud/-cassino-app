@@ -2,62 +2,38 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const crypto = require('crypto');
-const fs = require('fs');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// ========== FUNÇÃO DE LOG DETALHADA ==========
-const LOG_FILE = '/app/logs.txt';
-
-function log(type, message, data = null) {
+// LOGS detalhados para Railway
+function log(message, data = null) {
     const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] [${type}] ${message}`;
-    
-    // Console (vai aparecer nos Deploy Logs do Railway)
-    console.log(logEntry);
-    if (data) {
-        const dataStr = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
-        console.log(dataStr);
-    }
-    
-    // Salva em arquivo para debug
-    try {
-        fs.appendFileSync(LOG_FILE, logEntry + '\n');
-        if (data) fs.appendFileSync(LOG_FILE, JSON.stringify(data) + '\n');
-    } catch(e) {}
+    console.log(`[${timestamp}] ${message}`);
+    if (data) console.log(JSON.stringify(data, null, 2));
 }
 
-// Log de inicialização do servidor
-log('INIT', '='.repeat(60));
-log('INIT', '🚀 SERVIDOR INICIANDO...');
-log('INIT', `📅 Data/Hora: ${new Date().toLocaleString()}`);
-log('INIT', `📂 Diretório atual: ${__dirname}`);
-log('INIT', `🔧 Process ID: ${process.pid}`);
-log('INIT', `🌍 PORT: ${process.env.PORT || 3000}`);
-log('INIT', `📦 Node version: ${process.version}`);
-log('INIT', '='.repeat(60));
+log('🚀 SERVIDOR INICIANDO...');
+log(`📅 Data: ${new Date().toLocaleString()}`);
+log(`🌍 PORT: ${process.env.PORT || 3000}`);
 
-// Cache de sessões
 const sessions = new Map();
 
-// ========== HEALTHCHECK ==========
+// Healthcheck - obrigatório para Railway
 app.get('/health', (req, res) => {
-    log('HEALTH', '📊 Healthcheck solicitado');
-    log('HEALTH', `📈 Sessões ativas: ${sessions.size}`);
+    log('📊 Healthcheck OK');
     res.status(200).json({ 
         status: 'ok', 
+        sessions: sessions.size, 
         timestamp: Date.now(),
-        sessions: sessions.size,
         uptime: process.uptime()
     });
 });
 
-// ========== ROTA PRINCIPAL ==========
 app.get('/', (req, res) => {
-    log('ROUTE', '🏠 GET / - Servindo página inicial');
+    log('🏠 GET / - Servindo index.html');
     res.sendFile(__dirname + '/public/index.html');
 });
 
@@ -65,22 +41,19 @@ app.get('/', (req, res) => {
 app.post('/api/cassino/login', async (req, res) => {
     const { email, password, captcha_token } = req.body;
     
-    log('LOGIN', '='.repeat(40));
-    log('LOGIN', `📝 Tentativa de login para: ${email}`);
-    log('LOGIN', `🔑 Captcha recebido: ${captcha_token ? '✅ SIM (length: ' + captcha_token.length + ')' : '❌ NÃO'}`);
+    log(`📝 Tentativa de login: ${email}`);
+    log(`🔑 Captcha recebido: ${captcha_token ? '✅ SIM (length: ' + captcha_token.length + ')' : '❌ NÃO'}`);
     
-    // Verifica se o captcha foi enviado
     if (!captcha_token) {
-        log('LOGIN', '❌ CAPTCHA NÃO ENVIADO PELO FRONTEND!');
+        log('❌ ERRO: Captcha não enviado!');
         return res.status(400).json({ 
             success: false, 
-            error: 'Captcha é obrigatório' 
+            error: 'Captcha é obrigatório. Marque o checkbox "Não sou um robô".' 
         });
     }
     
     try {
-        log('LOGIN', '📡 Enviando requisição para API externa...');
-        log('LOGIN', `🌐 URL: https://api-front.appbackend.tech/api/auth/login`);
+        log('📡 Enviando para API externa...');
         
         const response = await axios.post('https://api-front.appbackend.tech/api/auth/login', {
             login: email,
@@ -99,8 +72,7 @@ app.post('/api/cassino/login', async (req, res) => {
         });
         
         const data = response.data;
-        log('LOGIN', `📥 Resposta recebida - Status: ${response.status}`);
-        log('LOGIN', `📦 Dados: ${JSON.stringify(data).substring(0, 200)}...`);
+        log(`📥 Resposta status: ${response.status}`);
         
         if (data.access_token) {
             const sessionId = crypto.randomBytes(16).toString('hex');
@@ -111,9 +83,8 @@ app.post('/api/cassino/login', async (req, res) => {
                 expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000)
             });
             
-            log('SUCCESS', `✅ Login bem-sucedido para: ${email}`);
-            log('SUCCESS', `🆔 Session ID: ${sessionId.substring(0, 16)}...`);
-            log('SUCCESS', `⏰ Expira em: ${new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toLocaleString()}`);
+            log(`✅ Login bem-sucedido! Session: ${sessionId.substring(0, 16)}...`);
+            log(`👤 Usuário: ${data.user?.name || email}`);
             
             res.json({
                 success: true,
@@ -124,19 +95,19 @@ app.post('/api/cassino/login', async (req, res) => {
                 expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000)
             });
         } else {
-            log('ERROR', '❌ Resposta da API sem access_token');
+            log('❌ Resposta sem access_token');
             throw new Error('Resposta sem access_token');
         }
         
     } catch (error) {
-        log('ERROR', `❌ Falha no login: ${error.message}`);
+        log(`❌ ERRO: ${error.message}`);
         if (error.response) {
-            log('ERROR', `📡 Status: ${error.response.status}`);
-            log('ERROR', `📦 Data: ${JSON.stringify(error.response.data)}`);
+            log(`📡 Status: ${error.response.status}`);
+            log(`📦 Data: ${JSON.stringify(error.response.data)}`);
         }
         res.status(401).json({
             success: false,
-            error: error.response?.data?.message || error.message || 'Falha na autenticação'
+            error: error.response?.data?.message || error.message || 'Falha na autenticação. Verifique email/senha.'
         });
     }
 });
@@ -145,28 +116,24 @@ app.post('/api/cassino/login', async (req, res) => {
 app.post('/api/cassino/start-game', async (req, res) => {
     const { session_id, game_slug } = req.body;
     
-    log('GAME', '='.repeat(40));
-    log('GAME', `🎮 Iniciando jogo com session_id: ${session_id?.substring(0, 16)}...`);
+    log(`🎮 Iniciando jogo - session: ${session_id?.substring(0, 16)}...`);
     
     const session = sessions.get(session_id);
     if (!session) {
-        log('ERROR', `❌ Sessão inválida ou não encontrada: ${session_id?.substring(0, 16)}...`);
-        return res.status(401).json({ success: false, error: 'Sessão inválida' });
+        log('❌ Sessão inválida');
+        return res.status(401).json({ success: false, error: 'Sessão inválida. Faça login novamente.' });
     }
     
-    log('GAME', `👤 Usuário: ${session.email}`);
-    log('GAME', `🔑 Access token: ${session.access_token?.substring(0, 30)}...`);
+    log(`👤 Usuário: ${session.email}`);
     
     const slug = game_slug || 'evolution/football-studio-dice';
-    log('GAME', `🎲 Game slug: ${slug}`);
+    log(`🎲 Game: ${slug}`);
     
     try {
         const tabId = crypto.randomUUID();
         const mountedId = crypto.randomUUID();
         
-        log('GAME', `🆔 tab_id: ${tabId}`);
-        log('GAME', `🆔 mounted_id: ${mountedId}`);
-        log('GAME', `📡 Chamando API /api/start-game-v2...`);
+        log('📡 Chamando start-game-v2...');
         
         const response = await axios.get(`https://api-front.appbackend.tech/api/start-game-v2`, {
             params: {
@@ -187,30 +154,26 @@ app.post('/api/cassino/start-game', async (req, res) => {
         });
         
         const data = response.data;
-        log('GAME', `📥 Resposta recebida - Status: ${response.status}`);
+        log(`📥 Resposta status: ${response.status}`);
         
-        // Extrai o verification_token
         let verificationToken = data.verification_token || data.token;
         
         if (!verificationToken && data.iframe_url) {
             const match = data.iframe_url.match(/[?&]token=([^&]+)/);
             if (match) verificationToken = match[1];
-            log('GAME', `🔑 Token extraído do iframe_url`);
+            log('🔑 Token extraído do iframe_url');
         }
         
         if (!verificationToken) {
-            log('ERROR', `❌ Não foi possível obter o verification_token`);
-            log('ERROR', `📦 Resposta completa: ${JSON.stringify(data)}`);
-            throw new Error('Não foi possível obter o verification_token');
+            log('❌ Não foi possível obter verification_token');
+            throw new Error('Não foi possível obter o token do jogo');
         }
         
         session.evo_token = verificationToken;
         
         const gameUrl = `https://sortenabet.evo-games.com/frontend/evo/r2/?table_id=TopDice000000001&token=${verificationToken}`;
         
-        log('SUCCESS', `✅ Jogo iniciado com sucesso!`);
-        log('SUCCESS', `🔑 Verification token: ${verificationToken.substring(0, 50)}...`);
-        log('SUCCESS', `🎮 Game URL: ${gameUrl.substring(0, 100)}...`);
+        log(`✅ Jogo iniciado! Token: ${verificationToken.substring(0, 30)}...`);
         
         res.json({
             success: true,
@@ -219,10 +182,10 @@ app.post('/api/cassino/start-game', async (req, res) => {
         });
         
     } catch (error) {
-        log('ERROR', `❌ Erro ao iniciar jogo: ${error.message}`);
+        log(`❌ ERRO: ${error.message}`);
         if (error.response) {
-            log('ERROR', `📡 Status: ${error.response.status}`);
-            log('ERROR', `📦 Data: ${JSON.stringify(error.response.data)}`);
+            log(`📡 Status: ${error.response.status}`);
+            log(`📦 Data: ${JSON.stringify(error.response.data)}`);
         }
         res.status(500).json({
             success: false,
@@ -235,24 +198,16 @@ app.post('/api/cassino/start-game', async (req, res) => {
 app.post('/api/cassino/verify', async (req, res) => {
     const { session_id } = req.body;
     
-    log('VERIFY', `🔍 Verificando sessão: ${session_id?.substring(0, 16)}...`);
-    
     const session = sessions.get(session_id);
     if (!session) {
-        log('VERIFY', `❌ Sessão não encontrada`);
         return res.json({ valid: false });
     }
     
     if (session.expires_at < Date.now()) {
-        log('VERIFY', `⚠️ Sessão expirada para: ${session.email}`);
-        log('VERIFY', `⏰ Expirou em: ${new Date(session.expires_at).toLocaleString()}`);
+        log(`⚠️ Sessão expirada: ${session.email}`);
         sessions.delete(session_id);
         return res.json({ valid: false, expired: true });
     }
-    
-    log('VERIFY', `✅ Sessão válida para: ${session.email}`);
-    log('VERIFY', `🎮 Tem token de jogo: ${!!session.evo_token}`);
-    log('VERIFY', `⏰ Expira em: ${new Date(session.expires_at).toLocaleString()}`);
     
     res.json({
         valid: true,
@@ -261,7 +216,7 @@ app.post('/api/cassino/verify', async (req, res) => {
     });
 });
 
-// ========== LIMPEZA PERIÓDICA ==========
+// Limpeza de sessões expiradas a cada hora
 setInterval(() => {
     const now = Date.now();
     let deleted = 0;
@@ -272,26 +227,23 @@ setInterval(() => {
         }
     }
     if (deleted > 0) {
-        log('CLEANUP', `🧹 ${deleted} sessões expiradas removidas. Total ativo: ${sessions.size}`);
+        log(`🧹 ${deleted} sessões expiradas removidas. Total ativo: ${sessions.size}`);
     }
 }, 60 * 60 * 1000);
 
-// ========== TRATAMENTO DE ERROS NÃO CAPTURADOS ==========
+// Tratamento de erros não capturados
 process.on('uncaughtException', (err) => {
-    log('FATAL', `💥 Uncaught Exception: ${err.message}`);
-    log('FATAL', err.stack);
-    process.exit(1);
+    log(`💥 Uncaught Exception: ${err.message}`);
+    console.error(err.stack);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    log('FATAL', `💥 Unhandled Rejection at: ${promise}`);
-    log('FATAL', `Reason: ${reason}`);
+    log(`💥 Unhandled Rejection: ${reason}`);
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-    log('START', `🚀 Servidor rodando na porta ${PORT}`);
-    log('START', `📝 Healthcheck: http://0.0.0.0:${PORT}/health`);
-    log('START', `📝 Frontend: http://0.0.0.0:${PORT}/`);
-    log('START', '✅ Pronto para receber requisições!');
+    log(`🚀 Servidor rodando na porta ${PORT}`);
+    log(`📝 Healthcheck: /health`);
+    log(`✅ Pronto para receber requisições!`);
 });
