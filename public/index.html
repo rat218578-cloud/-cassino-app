@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Football Studio - Login</title>
+    <title>Football Studio - Login Direto</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -111,7 +111,6 @@
 
     <script>
         let currentCaptchaToken = null;
-        let currentEmail = null;
         let currentAccessToken = null;
 
         function onCaptchaSuccess(token) {
@@ -139,49 +138,62 @@
             messageArea.innerHTML = '<div class="success-msg">🔄 Autenticando...</div>';
             
             try {
-                const response = await fetch('/api/login', {
+                // 🔥 CHAMA A API DIRETAMENTE DO NAVEGADOR!
+                // Assim usa o IP do USUÁRIO, não o IP do servidor!
+                const response = await fetch('https://sortenabet.bet.br/api/auth/login', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Origin': 'https://sortenabet.bet.br',
+                        'Referer': 'https://sortenabet.bet.br/'
+                    },
                     body: JSON.stringify({ 
+                        login: email, 
                         email: email, 
                         password: password,
+                        app_source: 'web',
                         captcha_token: currentCaptchaToken
                     })
                 });
                 
                 const data = await response.json();
                 
-                if (data.success) {
-                    currentEmail = email;
+                if (data.access_token) {
                     currentAccessToken = data.access_token;
-                    
                     messageArea.innerHTML = '<div class="success-msg">✅ Login realizado! Carregando jogo...</div>';
                     
-                    const gameResponse = await fetch('/api/game-url', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: email, access_token: currentAccessToken })
+                    // 🔥 SEGUNDA REQUISIÇÃO - PEGAR URL DO JOGO
+                    const gameResponse = await fetch(`https://sortenabet.bet.br/api/start-game-v2?slug=evolution/football-studio-dice&platform=WEB&use_demo=0&source=watchIsAuthenticated`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${currentAccessToken}`,
+                            'Content-Type': 'application/json'
+                        }
                     });
                     
                     const gameData = await gameResponse.json();
                     
-                    if (gameData.success && gameData.gameURL) {
+                    if (gameData.gameURL) {
                         const iframe = document.getElementById('gameFrame');
                         iframe.src = gameData.gameURL;
                         iframe.classList.add('active');
                         loginBox.style.display = 'none';
                         document.getElementById('backBtn').classList.add('active');
+                        
+                        // Salva token para recarregar depois
+                        localStorage.setItem('access_token', currentAccessToken);
+                        localStorage.setItem('user_email', email);
                     } else {
                         messageArea.innerHTML = '<div class="error-msg">❌ Falha ao carregar o jogo</div>';
                     }
                     
                 } else {
-                    messageArea.innerHTML = '<div class="error-msg">❌ ' + (data.error || 'Falha na autenticação') + '</div>';
+                    messageArea.innerHTML = '<div class="error-msg">❌ ' + (data.error || data.message || 'Falha na autenticação') + '</div>';
                 }
                 
             } catch (error) {
                 console.error('Erro:', error);
-                messageArea.innerHTML = '<div class="error-msg">❌ Erro de conexão com o servidor</div>';
+                messageArea.innerHTML = '<div class="error-msg">❌ Erro de conexão. Tente novamente.</div>';
             }
         }
 
@@ -191,15 +203,32 @@
             document.getElementById('backBtn').classList.remove('active');
             document.getElementById('loginBtn').disabled = true;
             currentCaptchaToken = null;
+            currentAccessToken = null;
             
             if (window.turnstile) {
                 turnstile.reset();
             }
         }
 
+        // Verificar token salvo
+        const savedToken = localStorage.getItem('access_token');
         const savedEmail = localStorage.getItem('user_email');
-        if (savedEmail) {
+        if (savedToken && savedEmail) {
             document.getElementById('email').value = savedEmail;
+            // Tenta recarregar o jogo com o token salvo
+            fetch(`https://sortenabet.bet.br/api/start-game-v2?slug=evolution/football-studio-dice&platform=WEB&use_demo=0&source=watchIsAuthenticated`, {
+                headers: { 'Authorization': `Bearer ${savedToken}` }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.gameURL) {
+                    document.getElementById('gameFrame').src = data.gameURL;
+                    document.getElementById('gameFrame').classList.add('active');
+                    document.getElementById('loginBox').style.display = 'none';
+                    document.getElementById('backBtn').classList.add('active');
+                }
+            })
+            .catch(() => {});
         }
 
         document.getElementById('loginBtn').onclick = doLogin;
