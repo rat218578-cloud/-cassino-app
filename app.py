@@ -5,11 +5,40 @@ import requests
 import json
 import time
 import os
+import socks
+import socket
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 app = Flask(__name__, static_folder='public', static_url_path='')
 CORS(app)
+
+# ========== CONFIGURAÇÃO TOR ==========
+def get_tor_session():
+    """Retorna uma sessão requests que usa Tor"""
+    session = requests.Session()
+    session.proxies = {
+        'http': 'socks5://127.0.0.1:9050',
+        'https': 'socks5://127.0.0.1:9050'
+    }
+    # Timeout maior para Tor (mais lento)
+    session.timeout = 30
+    return session
+
+# Testar conexão com Tor
+def test_tor():
+    try:
+        tor_session = get_tor_session()
+        response = tor_session.get('https://httpbin.org/ip', timeout=10)
+        print(f"🕵️ IP via Tor: {response.json()['origin']}")
+        return True
+    except Exception as e:
+        print(f"⚠️ Tor não disponível: {e}")
+        print("Usando conexão direta...")
+        return False
+
+# Verificar Tor no startup
+TOR_AVAILABLE = test_tor()
 
 # Headers padrão
 HEADERS = {
@@ -25,7 +54,7 @@ HEADERS = {
 sessions = {}
 
 def fazer_login(email, senha, captcha_token):
-    """Faz login na Sorte na Bet"""
+    """Faz login na Sorte na Bet usando Tor"""
     
     login_data = {
         "login": email,
@@ -39,11 +68,17 @@ def fazer_login(email, senha, captcha_token):
     print(f"📝 Token size: {len(captcha_token)} caracteres")
     
     try:
-        response = requests.post(
+        # Usar Tor se disponível
+        if TOR_AVAILABLE:
+            session = get_tor_session()
+        else:
+            session = requests.Session()
+        
+        response = session.post(
             'https://sortenabet.bet.br/api/auth/login',
             headers=HEADERS,
             json=login_data,
-            timeout=15
+            timeout=30
         )
         
         print(f"📥 Status da API: {response.status_code}")
@@ -65,12 +100,17 @@ def fazer_login(email, senha, captcha_token):
         return {'success': False, 'error': str(e)}
 
 def obter_url_jogo(access_token, slug='evolution/football-studio-dice'):
-    """Obtém URL do iframe do jogo"""
+    """Obtém URL do iframe do jogo via Tor"""
     
     print(f"🎮 Buscando jogo: {slug}")
     
     try:
-        response = requests.get(
+        if TOR_AVAILABLE:
+            session = get_tor_session()
+        else:
+            session = requests.Session()
+        
+        response = session.get(
             'https://sortenabet.bet.br/api/start-game-v2',
             params={
                 'slug': slug,
@@ -82,7 +122,7 @@ def obter_url_jogo(access_token, slug='evolution/football-studio-dice'):
                 **HEADERS,
                 'Authorization': f'Bearer {access_token}'
             },
-            timeout=15
+            timeout=30
         )
         
         print(f"📥 Status da API jogo: {response.status_code}")
@@ -102,7 +142,7 @@ def obter_url_jogo(access_token, slug='evolution/football-studio-dice'):
         print(f"❌ Exceção: {str(e)}")
         return {'success': False, 'error': str(e)}
 
-# ========== ROTAS ==========
+# ========== ROTAS (mesmas, sem alterações) ==========
 
 @app.route('/')
 def index():
@@ -210,10 +250,6 @@ def test():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     print(f"🚀 Servidor iniciando na porta {port}")
+    print(f"🕵️  Modo Tor: {'ATIVADO' if TOR_AVAILABLE else 'DESATIVADO'}")
     print(f"📁 Pasta pública: public/")
-    print(f"🔗 Rotas disponíveis:")
-    print(f"   GET  /")
-    print(f"   POST /api/login")
-    print(f"   POST /api/game-url")
-    print(f"   GET  /api/test")
     app.run(host='0.0.0.0', port=port, debug=True)
