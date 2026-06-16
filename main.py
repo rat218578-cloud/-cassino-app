@@ -5,7 +5,7 @@ import json
 import time
 import logging
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
 from playwright.async_api import async_playwright
 import requests
@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ========== CONFIGURAÇÕES ==========
-app = Flask(__name__)
+app = Flask(__name__, static_folder='public', static_url_path='')
 app.secret_key = os.getenv('SECRET_KEY', 'sua-chave-secreta-aqui')
 CORS(app)
 
@@ -87,7 +87,6 @@ async def gerar_captcha_token():
     logger.info("🚀 Iniciando Playwright para gerar CAPTCHA_TOKEN...")
     
     async with async_playwright() as p:
-        # ========== CONFIGURA ANTI-DETECÇÃO ==========
         ua = UserAgent()
         user_agent = ua.random
         
@@ -99,14 +98,12 @@ async def gerar_captcha_token():
             '--disable-software-rasterizer',
             '--disable-extensions',
             '--disable-plugins',
-            '--disable-images',  # Bloqueia imagens (mais leve)
-            '--disable-javascript',  # Se não precisar
+            '--disable-images',
             '--window-size=1024,768',
             '--lang=pt-BR,pt',
             '--disable-blink-features=AutomationControlled',
         ]
         
-        # Proxy se configurado
         if PROXY_HOST and PROXY_PORT:
             logger.info(f"🌐 Usando proxy: {PROXY_HOST}:{PROXY_PORT}")
             proxy = {
@@ -118,14 +115,12 @@ async def gerar_captcha_token():
         else:
             proxy = None
         
-        # ========== INICIA BROWSER ==========
         browser = await p.chromium.launch(
             headless=True,
             args=args,
             proxy=proxy
         )
         
-        # ========== CRIA CONTEXTO ==========
         context = await browser.new_context(
             viewport={'width': 1024, 'height': 768},
             locale='pt-BR',
@@ -142,33 +137,21 @@ async def gerar_captcha_token():
             }
         )
         
-        # ========== BLOQUEIA RECURSOS DESNECESSÁRIOS ==========
         await context.route('**/*', lambda route: handle_route(route))
         
-        # ========== CRIA PÁGINA ==========
         page = await context.new_page()
         
-        # ========== ANTI-DETECÇÃO AVANÇADA ==========
         await page.add_init_script("""
-            // Remove webdriver
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined
             });
-            
-            // Plugin array
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [1, 2, 3, 4, 5]
             });
-            
-            // Languages
             Object.defineProperty(navigator, 'languages', {
                 get: () => ['pt-BR', 'pt', 'en']
             });
-            
-            // Chrome runtime
             window.chrome = { runtime: {} };
-            
-            // Permissions
             const originalQuery = window.navigator.permissions.query;
             window.navigator.permissions.query = (parameters) => (
                 parameters.name === 'notifications' ?
@@ -177,21 +160,17 @@ async def gerar_captcha_token():
             );
         """)
         
-        # ========== ACESSA O SITE ==========
         logger.info("🌐 Acessando página de login...")
         await page.goto('https://sortenabet.bet.br/auth/login', {
             wait_until: 'networkidle',
             timeout: 30000
         })
         
-        # ========== AGUARDA TURNSTILE ==========
         logger.info("⏳ Aguardando Turnstile...")
         await asyncio.sleep(5)
         
-        # ========== TENTA CAPTURAR TOKEN ==========
         logger.info("🔍 Capturando token...")
         
-        # Método 1: localStorage
         token = await page.evaluate('''
             () => {
                 for (let key in localStorage) {
@@ -204,7 +183,6 @@ async def gerar_captcha_token():
             }
         ''')
         
-        # Método 2: Se não encontrou, tenta interagir
         if not token:
             logger.info("🔄 Tentando interagir com o formulário...")
             try:
@@ -227,7 +205,6 @@ async def gerar_captcha_token():
             except Exception as e:
                 logger.error(f"❌ Erro ao interagir: {e}")
         
-        # ========== SALVA SCREENSHOT ==========
         try:
             screenshot_path = f"/app/screenshots/{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
             await page.screenshot(path=screenshot_path)
@@ -235,7 +212,6 @@ async def gerar_captcha_token():
         except:
             pass
         
-        # ========== FECHA BROWSER ==========
         await browser.close()
         
         if token:
@@ -247,7 +223,6 @@ async def gerar_captcha_token():
             return None
 
 async def handle_route(route):
-    """Bloqueia recursos desnecessários"""
     resource_type = route.request.resource_type
     if resource_type in ['image', 'stylesheet', 'font', 'media']:
         await route.abort()
@@ -257,11 +232,10 @@ async def handle_route(route):
 # ========== ROTAS DA API ==========
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return send_from_directory('public', 'index.html')
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    """Login via API"""
     data = request.json
     email = data.get('email')
     senha = data.get('senha')
@@ -269,21 +243,17 @@ def login():
     if not email or not senha:
         return jsonify({'success': False, 'error': 'Email e senha obrigatórios'}), 400
     
-    # Tenta token do cache
     captcha_token = cache.get_captcha_token()
     
-    # Se não tem token, gera um
     if not captcha_token:
         logger.info("🔄 Gerando novo CAPTCHA_TOKEN...")
         captcha_token = asyncio.run(gerar_captcha_token())
         if not captcha_token:
             return jsonify({'success': False, 'error': 'Não foi possível gerar o token'}), 500
     
-    # Tenta access_token do cache
     access_token = cache.get_access_token()
     
     if access_token:
-        # Testa se ainda funciona
         session_req = requests.Session()
         session_req.headers.update({'Authorization': f'Bearer {access_token}'})
         try:
@@ -297,7 +267,6 @@ def login():
         except:
             pass
     
-    # Faz login
     logger.info("🔐 Fazendo login...")
     session_req = requests.Session()
     session_req.headers.update({
@@ -344,7 +313,6 @@ def login():
 
 @app.route('/api/token/status', methods=['GET'])
 def token_status():
-    """Verifica status dos tokens"""
     access_token = cache.get_access_token()
     captcha_token = cache.get_captcha_token()
     
@@ -356,7 +324,6 @@ def token_status():
 
 @app.route('/api/token/generate', methods=['POST'])
 def generate_token():
-    """Gera novo CAPTCHA_TOKEN"""
     token = asyncio.run(gerar_captcha_token())
     if token:
         return jsonify({'success': True, 'token': token[:50] + '...'})
@@ -364,7 +331,6 @@ def generate_token():
 
 @app.route('/api/jogo/<slug>', methods=['GET'])
 def carregar_jogo(slug):
-    """Carrega um jogo"""
     access_token = cache.get_access_token()
     if not access_token:
         return jsonify({'success': False, 'error': 'Não autenticado'}), 401
