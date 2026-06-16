@@ -5,6 +5,7 @@
   "deploy": {
     "startCommand": "python main.py",
     "restartPolicy": "never",
-    "healthcheckPath": "/"
+    "healthcheckPath": "/",
+    "port": 5000
   }
 }
