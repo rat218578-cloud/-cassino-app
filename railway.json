@@ -1,11 +1,11 @@
 {
   "build": {
-    "dockerfile": "Dockerfile"
+    "dockerfile": "Dockerfile"        // ✅ Usa Docker para build
   },
   "deploy": {
-    "startCommand": "python main.py",
-    "restartPolicy": "never",
-    "healthcheckPath": "/",
-    "sleepApplication": false
+    "startCommand": "python main.py",  // ✅ Comando para iniciar o app
+    "restartPolicy": "never",          // ✅ Não reinicia automaticamente
+    "healthcheckPath": "/",            // ✅ Verifica se o app está vivo
+    "sleepApplication": false          // ✅ Mantém o app sempre ativo
   }
 }
