@@ -1,11 +1,10 @@
- {
+{
   "build": {
     "dockerfile": "Dockerfile"
   },
   "deploy": {
     "startCommand": "python main.py",
     "restartPolicy": "never",
-    "healthcheckPath": "/",
-    "sleepApplication": false
+    "healthcheckPath": "/"
   }
 }
