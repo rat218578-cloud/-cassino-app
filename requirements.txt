@@ -1,4 +1,7 @@
-Flask==2.3.0
+# requirements.txt
+playwright==1.40.0
+flask==2.3.3
 flask-cors==4.0.0
-requests==2.31.0
-PySocks==1.7.1
+requests==2.32.3
+fake-useragent==1.5.1
+python-dotenv==1.0.0
