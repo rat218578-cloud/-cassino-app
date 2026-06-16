@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎮 Login - Playwright App</title>
+    <title>🎮 Login - Token no Navegador</title>
+    
+    <!-- ========== TURNSTILE (GERA O TOKEN NO NAVEGADOR) ========== -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -22,10 +26,9 @@
             width: 100%;
             max-width: 420px;
             border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
         }
         .logo { text-align: center; margin-bottom: 30px; }
-        .logo h1 { color: #00ff88; font-size: 2em; text-shadow: 0 0 20px rgba(0,255,136,0.3); }
+        .logo h1 { color: #00ff88; font-size: 2em; }
         .logo p { color: #888; font-size: 0.9em; margin-top: 5px; }
         .form-group { margin-bottom: 20px; }
         label { display: block; color: #ccc; margin-bottom: 8px; font-weight: 500; }
@@ -39,7 +42,7 @@
             font-size: 16px;
             transition: all 0.3s;
         }
-        input:focus { outline: none; border-color: #00ff88; background: rgba(255,255,255,0.08); }
+        input:focus { outline: none; border-color: #00ff88; }
         input::placeholder { color: #555; }
         button {
             width: 100%;
@@ -54,7 +57,7 @@
             transition: all 0.3s;
         }
         button:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,255,136,0.3); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
         .alert { margin-top: 15px; padding: 12px; border-radius: 10px; display: none; }
         .alert.success { display: block; background: rgba(0,255,136,0.1); border: 1px solid #00ff88; color: #00ff88; }
         .alert.error { display: block; background: rgba(255,68,68,0.1); border: 1px solid #ff4444; color: #ff4444; }
@@ -62,6 +65,12 @@
         .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .footer { text-align: center; margin-top: 20px; color: #555; font-size: 0.8em; }
+        .turnstile-container { 
+            display: flex; 
+            justify-content: center; 
+            margin: 15px 0;
+            min-height: 65px;
+        }
         .status-badge {
             display: inline-block;
             padding: 3px 10px;
@@ -71,6 +80,15 @@
         }
         .status-badge.success { background: rgba(0,255,136,0.2); color: #00ff88; }
         .status-badge.warning { background: rgba(255,200,0,0.2); color: #ffc800; }
+        .token-preview {
+            color: #888;
+            font-size: 0.7em;
+            word-break: break-all;
+            background: rgba(0,0,0,0.3);
+            padding: 8px;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
         .game-buttons { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
         .game-btn {
             flex: 1;
@@ -88,28 +106,17 @@
         .game-btn.aviator { background: #ff4400; }
         .game-btn.slot { background: #0088ff; }
         .game-btn.live { background: #00cc6a; }
-        #gameContainer {
-            margin-top: 15px;
-            display: none;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        #gameFrame {
-            width: 100%;
-            height: 400px;
-            border: none;
-            border-radius: 10px;
-            background: #000;
-        }
-        @media (max-width: 480px) { .container { padding: 20px; margin: 10px; } }
+        #gameContainer { margin-top: 15px; display: none; border-radius: 10px; overflow: hidden; }
+        #gameFrame { width: 100%; height: 400px; border: none; border-radius: 10px; background: #000; }
+        #successPanel { display: none; margin-top: 20px; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="logo">
-            <h1>🎮 Playwright App</h1>
-            <p>Login automático com anti-detecção</p>
-            <div class="status-badge" id="tokenStatus">⏳ Verificando tokens...</div>
+            <h1>🎮 Meu App</h1>
+            <p>Login com token gerado no seu navegador</p>
+            <div class="status-badge" id="tokenStatus">⏳ Aguardando token...</div>
         </div>
         
         <form id="loginForm">
@@ -117,16 +124,31 @@
                 <label>📧 E-mail</label>
                 <input type="email" id="email" placeholder="seu@email.com" required>
             </div>
+            
             <div class="form-group">
                 <label>🔒 Senha</label>
                 <input type="password" id="password" placeholder="••••••••" required>
             </div>
-            <button type="submit" id="loginBtn">🚀 Entrar</button>
+            
+            <!-- ========== TURNSTILE WIDGET ========== -->
+            <div class="turnstile-container">
+                <div class="cf-turnstile" 
+                     data-sitekey="0x4AAAAAAA...SEU_SITEKEY_AQUI..." 
+                     data-callback="onTurnstileSuccess"
+                     data-theme="dark">
+                </div>
+            </div>
+            
+            <div id="tokenPreview" class="token-preview" style="display:none;">
+                ✅ Token gerado: <span id="tokenText"></span>
+            </div>
+            
+            <button type="submit" id="loginBtn" disabled>⏳ Aguardando token...</button>
         </form>
         
         <div class="alert" id="alert"></div>
         
-        <div id="successPanel" style="display: none; margin-top: 20px;">
+        <div id="successPanel">
             <div style="background: rgba(0,255,136,0.05); border-radius: 10px; padding: 15px;">
                 <p style="color: #00ff88;">✅ Login bem-sucedido!</p>
                 <p id="userEmail" style="color: #888; font-size: 0.9em;"></p>
@@ -142,39 +164,29 @@
         </div>
         
         <div class="footer">
-            🔐 Chromium + Anti-Detecção | Tokens em cache por 7 dias
+            🔐 Token gerado no SEU navegador | IP do usuário
         </div>
     </div>
     
     <script>
-        // ========== STATUS DOS TOKENS ==========
-        async function verificarTokens() {
-            try {
-                const response = await fetch('/api/token/status');
-                const data = await response.json();
-                const badge = document.getElementById('tokenStatus');
-                
-                if (data.has_access_token && data.has_captcha_token) {
-                    badge.textContent = '✅ Tokens válidos (cache)';
-                    badge.className = 'status-badge success';
-                } else if (data.has_captcha_token) {
-                    badge.textContent = '⚠️ Captcha token OK, access token expirado';
-                    badge.className = 'status-badge warning';
-                } else {
-                    badge.textContent = '❌ Sem tokens (será gerado automaticamente)';
-                    badge.className = 'status-badge warning';
-                }
-            } catch(e) {
-                console.error('Erro ao verificar tokens:', e);
-            }
-        }
+        let captchaToken = null;
+        let loginBtn = document.getElementById('loginBtn');
         
-        verificarTokens();
+        // ========== CALLBACK DO TURNSTILE ==========
+        function onTurnstileSuccess(token) {
+            captchaToken = token;
+            document.getElementById('tokenText').textContent = token.slice(0, 30) + '...';
+            document.getElementById('tokenPreview').style.display = 'block';
+            document.getElementById('tokenStatus').textContent = '✅ Token gerado!';
+            document.getElementById('tokenStatus').className = 'status-badge success';
+            loginBtn.disabled = false;
+            loginBtn.textContent = '🚀 Entrar';
+            console.log('✅ CAPTCHA_TOKEN gerado no navegador:', token.slice(0, 50) + '...');
+        }
         
         // ========== FORMULÁRIO ==========
         const form = document.getElementById('loginForm');
         const alertDiv = document.getElementById('alert');
-        const loginBtn = document.getElementById('loginBtn');
         const successPanel = document.getElementById('successPanel');
         
         function showAlert(message, type) {
@@ -197,27 +209,43 @@
                 return;
             }
             
+            if (!captchaToken) {
+                showAlert('Aguardando token do Turnstile...', 'error');
+                return;
+            }
+            
             loginBtn.innerHTML = '<span class="spinner"></span> Entrando...';
             loginBtn.disabled = true;
             
             try {
+                // ========== ENVIA O TOKEN GERADO NO NAVEGADOR ==========
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, senha: password })
+                    body: JSON.stringify({ 
+                        email: email, 
+                        senha: password,
+                        captcha_token: captchaToken  // ← TOKEN DO NAVEGADOR!
+                    })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    showAlert('✅ Login bem-sucedido! Token gerado/recuperado.', 'success');
+                    showAlert('✅ Login bem-sucedido!', 'success');
                     document.getElementById('userEmail').textContent = `👤 ${email}`;
                     successPanel.style.display = 'block';
                     localStorage.setItem('access_token', data.access_token);
                     console.log('🎯 Access Token:', data.access_token);
-                    verificarTokens();
+                    document.getElementById('tokenStatus').textContent = '✅ Logado!';
                 } else {
                     showAlert(`❌ ${data.error || 'Erro no login'}`, 'error');
+                    // Se falhar, reseta o token
+                    captchaToken = null;
+                    loginBtn.disabled = true;
+                    loginBtn.textContent = '⏳ Aguardando token...';
+                    document.getElementById('tokenStatus').textContent = '⚠️ Token inválido, aguarde...';
+                    document.getElementById('tokenStatus').className = 'status-badge warning';
                 }
             } catch (error) {
                 showAlert(`❌ Erro: ${error.message}`, 'error');
@@ -250,6 +278,15 @@
                 showAlert(`❌ Erro: ${error.message}`, 'error');
             }
         }
+        
+        // ========== SITEKEY DO TURNSTILE ==========
+        // Você precisa pegar o SITEKEY da Sorte na Bet!
+        // Abra o site deles, inspecione e procure por:
+        // data-sitekey="0x4AAAAAAA..."
+        
+        console.log('🚀 App carregado!');
+        console.log('📌 O CAPTCHA_TOKEN será gerado no seu navegador');
+        console.log('📌 Seu IP será usado, NUNCA será bloqueado!');
     </script>
 </body>
 </html>
